@@ -1,0 +1,556 @@
+/* ------------------------------------------------------------------
+   DIRECTION CONTRACT — impeccable, scope: direction, mode: operate
+   seed key 57721061, assigned index 3/7 (grounded candidate list),
+   raised by two declined-challenger donations.
+
+   THESIS: the call console is a mixing desk, not a chat window —
+   every action Aria takes lands as a marked event on a live session
+   timeline, exactly like an automation move on a DAW track, refusing
+   the generic "transcript feed + status cards" dashboard default.
+
+   OWN-WORLD: warm graphite/near-black console chassis; one commanded
+   accent, analog broadcast "ON AIR" red, carrying all live/primary
+   meaning; VU-meter zone colors (green/amber/red) reused faithfully
+   for call-health signals, never invented arbitrarily. Archivo for
+   panel labels and body — a workhorse grotesque with a genuine
+   condensed/expanded family for channel-strip lettering, not a trend
+   face. JetBrains Mono strictly for digits, timestamps, and instrument
+   readouts (raised by the nixie-tube-counter challenger's donation).
+   Single-theme, dark-only, by deliberate choice: a mixing desk is a
+   dim-room instrument, and this console is used screen-shared during
+   demos — the use scene decided it, not a category default.
+
+   STORY: an operator opens a powered-down desk, starts the call, and
+   watches it come alive — a LIVE lamp lights red, the session timeline
+   starts printing events as Aria acts, the patch bay lights up with
+   qualification readouts the instant a field changes. An escalation
+   guardrail tripping reads exactly like a meter clipping into the red.
+
+   FIRST VIEWPORT: full-bleed console chassis — a left transport rail
+   (LIVE lamp, elapsed digital readout, transport switches), a center
+   session timeline (the dominant region, horizontal event track with
+   a live-printing playhead), a right patch bay (qualification
+   readouts + a dedicated alarm channel strip). No card grid, no hero
+   metric, no chat-bubble list.
+
+   FORM: recording-studio mixing console / DAW session-timeline world.
+   Raised by: depth/prominence as a state signal (declined challenger
+   operate-c-cracktro-scroller-queue) and physical-feeling digit
+   readouts for numeric fields (declined challenger
+   signals-instruments-nixie-laboratory-counter). Weighed against 6
+   catalog challengers; none beat it on both audience-identification
+   and product-clarity for this mechanism.
+
+   FINISH: unreviewed and undocumented is unfinished. Native
+   impeccable-finish-reviewer/-documenter subagents are unavailable in
+   this mid-session install — substituted with a self-run inspection
+   pass (desktop + mobile screenshots) and a directly authored
+   DESIGN.md, disclosed to the user at handoff rather than silently.
+   ------------------------------------------------------------------ */
+
+:root {
+  /* console chassis */
+  --chassis: #17130f;
+  --chassis-raised: #211b15;
+  --chassis-inset: #100d0a;
+  --chassis-inset-2: #0b0908;
+  --edge: #3a3128;
+  --edge-bright: #52453590;
+
+  /* ivory backlighting */
+  --text: #f3ece1;
+  --text-dim: #a89a86;
+  --text-faint: #8f8067;
+
+  /* the one commanded accent: analog on-air / rec red */
+  --live: #ff3b2f;
+  --live-dim: #4a1712;
+  --live-glow: #ff3b2f55;
+
+  /* VU-meter zone colors, reused as call-health semantics */
+  --meter-green: #5fd964;
+  --meter-green-dim: #4a8058;
+  --meter-amber: #f0a83c;
+  --meter-amber-dim: #3a2712;
+  --meter-red: #ff3b2f;
+  --meter-red-dim: #4a1712;
+
+  --font-ui: "Archivo", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  --radius: 3px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--chassis);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--live);
+  color: var(--chassis);
+}
+
+:focus-visible {
+  outline: 2px solid var(--live);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- desk shell ---------------- */
+
+.desk {
+  height: 100dvh;
+  display: grid;
+  grid-template-columns: 240px 1fr 320px;
+  background: var(--chassis);
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 18px;
+  gap: 22px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.rail-transport {
+  border-right: 1px solid var(--edge);
+  background: linear-gradient(180deg, var(--chassis-raised), var(--chassis));
+}
+
+.rail-patchbay {
+  border-left: 1px solid var(--edge);
+  background: linear-gradient(180deg, var(--chassis-raised), var(--chassis));
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.brand .name {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.brand .unit {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
+}
+
+.panel-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* ---------------- lamp + transport ---------------- */
+
+.lamp-housing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--chassis-inset);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+}
+
+.lamp {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--live-dim);
+  flex: none;
+  transition: background 0.2s;
+}
+
+.lamp.on {
+  background: var(--live);
+  box-shadow: 0 0 10px 2px var(--live-glow), inset 0 0 3px #fff6;
+  animation: pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+.lamp-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lamp-caption {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+.lamp-state {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.lamp.on ~ .lamp-text .lamp-state,
+.lamp-housing:has(.lamp.on) .lamp-state {
+  color: var(--live);
+}
+
+.readout {
+  padding: 14px 14px 12px;
+  background: var(--chassis-inset);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+}
+
+.readout .value {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.readout .value.dim {
+  color: var(--text-faint);
+}
+
+.readout .label {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.transport {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.switch {
+  appearance: none;
+  border: 1px solid var(--edge-bright);
+  background: linear-gradient(180deg, #2a2318, #1a1611);
+  color: var(--text);
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 1px 0 #00000080, inset 0 1px 0 #ffffff0f;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+
+.switch:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 0 0 #00000080, inset 0 1px 0 #ffffff0f;
+}
+
+.switch:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.switch.live {
+  border-color: var(--live);
+  background: linear-gradient(180deg, #3a1712, #22100c);
+  color: #ffd6d1;
+}
+
+.switch.live:hover:not(:disabled) {
+  background: linear-gradient(180deg, #48211a, #2a130e);
+}
+
+.error-strip {
+  padding: 10px 12px;
+  background: var(--meter-red-dim);
+  border: 1px solid var(--meter-red);
+  border-radius: var(--radius);
+  color: #ffd6d1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------------- session timeline ---------------- */
+
+.timeline-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 22px 22px 18px;
+  gap: 12px;
+}
+
+.timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeline-title {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.tool-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--live);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.track {
+  flex: 1;
+  min-height: 0;
+  background:
+    repeating-linear-gradient(90deg, var(--edge-bright) 0 1px, transparent 1px 64px),
+    var(--chassis-inset-2);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  max-width: 32ch;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 64px 84px 1fr;
+  align-items: start;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--radius);
+  animation: print-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes print-in {
+  from { background: var(--live-dim); }
+  to { background: transparent; }
+}
+
+.event-ts {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  padding-top: 2px;
+}
+
+.event-kind {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-top: 3px;
+}
+
+.event-kind.user { color: var(--text-dim); }
+.event-kind.assistant { color: var(--live); }
+.event-kind.tool { color: var(--meter-amber); }
+.event-kind.escalation { color: var(--meter-red); }
+.event-kind.outcome { color: var(--meter-green); }
+
+.event-body {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.event.tool .event-body,
+.event.escalation .event-body,
+.event.outcome .event-body {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* ---------------- patch bay ---------------- */
+
+.patch-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.patch-cell {
+  padding: 10px 11px;
+  background: var(--chassis-inset);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.patch-cell.wide {
+  grid-column: 1 / -1;
+}
+
+.patch-cell .label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.patch-cell .value {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.patch-cell .value.empty {
+  color: var(--text-faint);
+}
+
+/* ---------------- alarm channel ---------------- */
+
+.alarm {
+  padding: 14px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--chassis-inset);
+}
+
+.alarm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.alarm-zone {
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+}
+
+.alarm-zone i {
+  flex: 1;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--meter-green-dim);
+}
+
+.alarm.tripped .alarm-zone i:nth-child(-n+3) { background: var(--meter-green); }
+.alarm.tripped .alarm-zone i:nth-child(n+4):nth-child(-n+7) { background: var(--meter-amber); }
+.alarm.tripped .alarm-zone i:nth-child(n+8) {
+  background: var(--meter-red);
+  box-shadow: 0 0 6px 1px var(--live-glow);
+}
+
+.alarm-message {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.alarm.tripped .alarm-message {
+  color: #ffd6d1;
+}
+
+/* ---------------- responsive ---------------- */
+
+@media (max-width: 860px) {
+  .desk {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .rail-transport,
+  .rail-patchbay {
+    border: none;
+    border-bottom: 1px solid var(--edge);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    overflow: visible;
+  }
+
+  .rail-patchbay {
+    border-top: 1px solid var(--edge);
+    border-bottom: none;
+  }
+
+  .transport {
+    margin-top: 0;
+    flex-direction: row;
+  }
+
+  .patch-grid {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lamp.on,
+  .tool-status::before {
+    animation: none;
+  }
+
+  .event {
+    animation: none;
+  }
+}

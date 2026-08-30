@@ -1,0 +1,38 @@
+{
+  "product": "Apple for Business — device fleet pricing",
+  "currency": "USD",
+  "billing": "per device, one-time purchase or 24-month lease via Apple Financial Services; volume pricing applies automatically above 20 units on a single order",
+  "tiers": [
+    {
+      "name": "Starter",
+      "price_per_seat_monthly": null,
+      "price_per_device": "MacBook Air (M3) from $999/device; iPhone 16 from $799/device",
+      "included_seats_band": "1-19 devices",
+      "features": ["standard AppleCare+ available per device", "Apple Business Manager account setup", "email support"]
+    },
+    {
+      "name": "Growth",
+      "price_per_seat_monthly": null,
+      "price_per_device": "MacBook Air (M3) from $949/device (5% volume discount); iPhone 16 from $759/device",
+      "included_seats_band": "20-99 devices",
+      "features": ["everything in Starter", "Mobile Device Management (MDM) enrollment automation", "dedicated onboarding specialist", "priority chat support"]
+    },
+    {
+      "name": "Enterprise",
+      "price_per_seat_monthly": null,
+      "price_per_device": null,
+      "included_seats_band": "100+ devices",
+      "features": ["everything in Growth", "custom fleet pricing based on device mix and term", "trade-in program for the old fleet", "dedicated Apple Business account manager", "custom deployment SLA"],
+      "note": "Custom quote required above 100 devices; final price depends on device mix (Mac/iPhone/iPad ratio), lease vs. purchase, and trade-in credit for the existing fleet."
+    }
+  ],
+  "device_lineup": [
+    {"product": "MacBook Air (M3)", "starting_price": 999, "note": "13-inch, 18-hour battery"},
+    {"product": "MacBook Pro (M4)", "starting_price": 1599, "note": "for engineering/design-heavy roles"},
+    {"product": "iPhone 16", "starting_price": 799},
+    {"product": "iPhone 16 Pro", "starting_price": 999},
+    {"product": "iPad (10th gen)", "starting_price": 349, "note": "field teams, shared-device kiosks"},
+    {"product": "iPad Pro (M4)", "starting_price": 999}
+  ],
+  "financing_note": "Apple Financial Services offers 24-month business leasing as an alternative to upfront purchase — ask about it if budget, not total cost, is the blocker."
+}

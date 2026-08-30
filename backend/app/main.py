@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.routes import admin, call, llm
 
-# Default log level is WARNING - our own INFO-level diagnostic logging
+# Default log level is WARNING — our own INFO-level diagnostic logging
 # (e.g. pipeline.py logging the exact reply text per turn) was silently
 # dropped without this, found live while trying to diagnose a real call.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -20,7 +20,7 @@ app = FastAPI(title="Aria orchestrator")
 @app.middleware("http")
 async def catch_all_exceptions(request: Request, call_next):
     """Deliberately registered as ASGI middleware, NOT via
-    @app.exception_handler(Exception) - Starlette special-cases a handler
+    @app.exception_handler(Exception) — Starlette special-cases a handler
     registered for the bare Exception class, routing it through
     ServerErrorMiddleware, which sits OUTSIDE CORSMiddleware. That silently
     drops the CORS header on every error response reaching the browser as an

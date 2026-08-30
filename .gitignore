@@ -20,6 +20,10 @@ tsconfig.tsbuildinfo
 # Regenerated from fixtures on first run.
 backend/data/
 
+# Local agent/editor tooling - machine-specific paths, not part of the app
+.claude/
+.codex/
+
 # OS / editor
 .DS_Store
 Thumbs.db

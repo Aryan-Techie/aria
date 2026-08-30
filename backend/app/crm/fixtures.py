@@ -1,0 +1,43 @@
+from app.crm.models import Lead
+
+SEED_LEADS: list[Lead] = [
+    Lead(
+        name="Priya Nair",
+        company="Boltframe Logistics",
+        email="priya@boltframe.io",
+        phone="+91-98765-11111",
+        user_count=25,
+        budget_range="$500-$1000/mo",
+        timeline="this quarter",
+        pain_points=["manual dispatch scheduling"],
+        decision_stage="evaluating",
+        status="qualified",
+        notes=["Inbound from webinar, warm."],
+    ),
+    Lead(
+        name="Marcus Webb",
+        company="Northlane Retail",
+        email="marcus@northlane.com",
+        phone="+1-555-0142",
+        user_count=8,
+        budget_range="$100-$250/mo",
+        timeline="not decided",
+        pain_points=["too small for enterprise tools"],
+        decision_stage="discovery",
+        status="new",
+        notes=[],
+    ),
+    Lead(
+        name="Elena Rossi",
+        company="Vantiq Health",
+        email="elena@vantiqhealth.com",
+        phone="+39-02-5551234",
+        user_count=120,
+        budget_range="$5000+/mo",
+        timeline="next 6 months",
+        pain_points=["compliance", "multi-region rollout"],
+        decision_stage="ready_to_buy",
+        status="meeting_booked",
+        notes=["Enterprise demo already booked last week."],
+    ),
+]

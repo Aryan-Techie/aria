@@ -55,23 +55,23 @@ class Settings(BaseSettings):
 
     mem0_vector_store_path: str = "./data/mem0"
     voyage_api_key: str = ""
-    # Kill-switch, separate from key presence - found live: the installed
+    # Kill-switch, separate from key presence — found live: the installed
     # mem0ai + anthropic SDK versions are incompatible (see the comment in
     # app/memory/session_memory.py::is_configured). Flip to True once fixed.
     memory_enabled: bool = False
 
     slack_webhook_url: str = ""
-    # Off for now while premature-escalation behavior is tuned live - the
+    # Off for now while premature-escalation behavior is tuned live — the
     # LLM's own (now last-resort-only) judgment is the sole escalation path.
     escalation_guardrails_enabled: bool = False
 
     # ASR/TTS vendor selection for the /join payload. "ares" under managed
     # mode failed live ("not available for the current SKU"), but deepgram
     # (ASR) and minimax (TTS) both confirmed WORKING under managed mode on
-    # this same account - the SKU restriction was per (vendor, url/model)
+    # this same account — the SKU restriction was per (vendor, url/model)
     # combination, not a blanket ban on managed mode. Both need Agora's
     # documented public endpoint URL even under managed (Agora validates it
-    # against its own allowlist, then injects its own key) - no external
+    # against its own allowlist, then injects its own key) — no external
     # vendor account or API key required for either default.
     asr_vendor: str = "deepgram"
     asr_language: str = "en"
@@ -89,9 +89,9 @@ class Settings(BaseSettings):
     elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"
     elevenlabs_model_id: str = "eleven_flash_v2_5"
 
-    # Shared secret Agora echoes back as llm.api_key on every call to our
-    # /chat/completions webhook, validated in routes/llm.py. Set it: that
-    # endpoint is reachable from the public internet through the tunnel.
+    # Optional shared secret Agora echoes back as llm.api_key on every call to
+    # our /chat/completions webhook — set this and check it in routes/llm.py
+    # once ready to prevent unauthenticated calls to a publicly exposed endpoint.
     llm_shared_secret: str = ""
 
 
