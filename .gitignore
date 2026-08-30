@@ -1,0 +1,27 @@
+# Secrets - never commit these. Real Agora / Anthropic / Groq / Voyage
+# credentials live here; use backend/.env.example as the template.
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+tsconfig.tsbuildinfo
+
+# Runtime state: CRM/calendar/inbox snapshots and the local mem0 vector store.
+# Regenerated from fixtures on first run.
+backend/data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
