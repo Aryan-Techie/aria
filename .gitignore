@@ -20,12 +20,8 @@ tsconfig.tsbuildinfo
 # Regenerated from fixtures on first run.
 backend/data/
 
-# Local session handover notes - kept out of the public repo by request
-CLAUDE.md
-
-# Local agent/editor tooling - machine-specific paths, not part of the app
-.claude/
-.codex/
+# Local working notes - personal handover files, not part of the public repo
+*.local.md
 
 # OS / editor
 .DS_Store
