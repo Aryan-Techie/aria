@@ -1,0 +1,26 @@
+[
+    {
+        "label": "Overview",
+        "rows": [
+            [{"name": "name"}, {"name": "accountName"}],
+            [{"name": "emailAddress"}, {"name": "phoneNumber"}],
+            [{"name": "status"}, {"name": "cAriaDecisionStage"}]
+        ]
+    },
+    {
+        "label": "Aria Qualification",
+        "rows": [
+            [{"name": "cAriaUserCount"}, {"name": "cAriaBudgetRange"}],
+            [{"name": "cAriaTimeline"}, {"name": "cAriaOutcome"}],
+            [{"name": "cAriaPainPoints", "fullWidth": true}],
+            [{"name": "cAriaSessionId", "fullWidth": true}]
+        ]
+    },
+    {
+        "label": "Details",
+        "rows": [
+            [{"name": "source"}, {"name": "industry"}],
+            [{"name": "description", "fullWidth": true}]
+        ]
+    }
+]

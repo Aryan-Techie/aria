@@ -1,6 +1,10 @@
+import logging
+
 from app.crm.fixtures import SEED_LEADS
 from app.crm.models import Lead
 from app.persistence import load_state, save_state
+
+logger = logging.getLogger("aria")
 
 _STATE_NAME = "crm"
 
@@ -58,4 +62,27 @@ class LeadStore:
         self._persist()
 
 
-lead_store = LeadStore()
+def _build_store():
+    """Chosen once at import. The in-memory store is the default and the
+    fallback: if EspoCRM is selected but unreachable or unconfigured, the app
+    still boots on it rather than failing to start, because a backend that
+    will not come up ten minutes before a demo is the worst outcome here.
+    Every individual CRM call degrades the same way - see EspoLeadStore."""
+    from app.config import get_settings
+
+    settings = get_settings()
+    if settings.crm_backend != "espocrm":
+        return LeadStore()
+
+    if not settings.espocrm_api_key:
+        logger.warning("CRM_BACKEND=espocrm but ESPOCRM_API_KEY is empty - using in-memory store")
+        return LeadStore()
+
+    from app.crm.espo_client import EspoClient
+    from app.crm.espo_store import EspoLeadStore
+
+    logger.info("CRM backend: EspoCRM at %s", settings.espocrm_base_url)
+    return EspoLeadStore(EspoClient(settings.espocrm_base_url, settings.espocrm_api_key))
+
+
+lead_store = _build_store()

@@ -1,0 +1,107 @@
+# Real CRM behind Aria's crm_* and calendar_* tools.
+#
+# `espocrm-websocket` is what makes an open Lead page update ITSELF while
+# Aria is talking - EspoCRM pushes record changes to the browser over
+# ws://localhost:8081 instead of the tab having to be reloaded. Without it
+# the CRM is still correct, it just needs a manual refresh to show it, which
+# is a much weaker thing to demo.
+#
+# `espocrm-daemon` runs EspoCRM's scheduled jobs. Nothing here depends on a
+# cron job, but the websocket path is happier with it running and it is cheap.
+#
+# Start:  docker compose -f crm/docker-compose.yml up -d
+# Admin:  http://localhost:8080   (admin / aria-demo-admin)
+# Then:   python scripts/provision_crm.py     <- mints the API key
+services:
+  espocrm-db:
+    image: mariadb:11
+    container_name: aria-espocrm-db
+    environment:
+      MARIADB_ROOT_PASSWORD: aria-root
+      MARIADB_DATABASE: espocrm
+      MARIADB_USER: espocrm
+      MARIADB_PASSWORD: aria-espocrm
+    volumes:
+      - espocrm-db:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      start_period: 20s
+      timeout: 10s
+      retries: 10
+
+  espocrm:
+    image: espocrm/espocrm:latest
+    container_name: aria-espocrm
+    environment:
+      ESPOCRM_DATABASE_PLATFORM: Mysql
+      ESPOCRM_DATABASE_HOST: espocrm-db
+      ESPOCRM_DATABASE_USER: espocrm
+      ESPOCRM_DATABASE_PASSWORD: aria-espocrm
+      ESPOCRM_ADMIN_USERNAME: admin
+      ESPOCRM_ADMIN_PASSWORD: aria-demo-admin
+      # Must match how the browser reaches it, or Espo builds broken links.
+      ESPOCRM_SITE_URL: "http://localhost:8080"
+      # The app container is the PUBLISHER: it pushes record-change events
+      # onto the websocket server's ZeroMQ socket. Without these three the
+      # server runs but never receives anything, and the UI silently stays
+      # static - which looks identical to "the CRM did not update".
+      ESPOCRM_CONFIG_USE_WEB_SOCKET: "true"
+      ESPOCRM_CONFIG_WEB_SOCKET_URL: "ws://localhost:8081"
+      ESPOCRM_CONFIG_WEB_SOCKET_ZERO_M_Q_SUBMISSION_DSN: "tcp://espocrm-websocket:7777"
+    # EspoCRM 10 refuses to auto-install if /var/www/html is mounted whole -
+    # an empty volume there shadows the shipped application and the entrypoint
+    # bails with "LEGACY INSTALLATION METHOD DETECTED", leaving the API
+    # returning 500 "No database params in config" forever. Only these three
+    # subdirectories may be persisted. (Most compose snippets online, and
+    # EspoCRM's own older docs, still show the whole-webroot mount.)
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    restart: unless-stopped
+    depends_on:
+      espocrm-db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+  espocrm-websocket:
+    image: espocrm/espocrm:latest
+    container_name: aria-espocrm-ws
+    environment:
+      ESPOCRM_CONFIG_USE_WEB_SOCKET: "true"
+      # What the BROWSER connects to, so it must be the host-visible address.
+      ESPOCRM_CONFIG_WEB_SOCKET_URL: "ws://localhost:8081"
+      # Bind on all interfaces here; the app container dials in by name.
+      ESPOCRM_CONFIG_WEB_SOCKET_ZERO_M_Q_SUBSCRIBER_DSN: "tcp://*:7777"
+      ESPOCRM_CONFIG_WEB_SOCKET_ZERO_M_Q_SUBMISSION_DSN: "tcp://espocrm-websocket:7777"
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    restart: unless-stopped
+    depends_on:
+      - espocrm
+    entrypoint: docker-websocket.sh
+    ports:
+      - "8081:8080"
+
+  espocrm-daemon:
+    image: espocrm/espocrm:latest
+    container_name: aria-espocrm-daemon
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    restart: unless-stopped
+    depends_on:
+      - espocrm
+    entrypoint: docker-daemon.sh
+
+volumes:
+  espocrm-db:
+  espocrm-data:
+  espocrm-custom:
+  espocrm-client-custom:
