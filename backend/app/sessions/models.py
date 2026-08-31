@@ -17,6 +17,15 @@ class SessionState(BaseModel):
 
     crm_lead_id: str | None = None
     booking_id: str | None = None
+    # Kept alongside booking_id because the call-end confirmation pass needs
+    # the slot's time and rep, and neither calendar store can look a booking
+    # back up by its id - availability in the EspoCRM one is derived, not
+    # stored as rows.
+    booking_slot_id: str | None = None
+    # Set only after a confirmation email has actually left the building, so
+    # the call-end backstop retries a send that failed at booking time and
+    # skips one that did not. See notify/service.py.
+    confirmation_sent: bool = False
     mem0_user_id: str | None = None  # defaults to session_id once memory (Step 4) is wired in
 
     status: SessionStatus = "active"

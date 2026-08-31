@@ -8,8 +8,10 @@ from typing import Protocol
 
 from app.agora.client import AgoraRestClient, default_agora_client
 from app.agora.join_payload import build_join_payload
+from app.background import run_in_background
 from app.config import Settings, get_settings
 from app.crm import service as crm_service
+from app.notify import service as notify_service
 from app.sessions.models import SessionState
 from app.sessions.store import SessionStore, session_store
 
@@ -126,5 +128,12 @@ def end_call(
     store.save(session)
 
     crm_service.set_outcome(session_id, outcome)
+
+    # Backstop for the send fired at booking time, and the only path that can
+    # carry the call recap - the qualification record is not complete until
+    # the call is over. A no-op when that send already succeeded, when nothing
+    # was booked, or when email is off. Backgrounded because this endpoint is
+    # what the browser's End Call button waits on.
+    run_in_background(notify_service.on_call_end, session, store=store)
 
     return {"session_id": session_id, "status": session.status, "outcome": outcome}

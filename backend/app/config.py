@@ -72,6 +72,25 @@ class Settings(BaseSettings):
     # scripts/provision_crm.py.
     espocrm_assigned_user_id: str = ""
 
+    # Confirmation email + calendar invite, sent when a meeting is booked.
+    # Off by default and a no-op when off: the code path is reachable from a
+    # live call, and a half-configured mail server should cost nothing rather
+    # than block a turn. Any SMTP provider works - Gmail with an App Password
+    # (free, 500/day) is what this was developed against.
+    email_enabled: bool = False
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587  # 587 = STARTTLS submission; 465 = implicit TLS
+    smtp_starttls: bool = True
+    smtp_username: str = ""
+    smtp_password: str = ""  # Gmail: an App Password, never the account password
+    # Most providers reject a From that is not the authenticated mailbox, so
+    # this falls back to SMTP_USERNAME when blank.
+    email_from: str = ""
+    email_from_name: str = "Aria - Apple Business team"
+    email_reply_to: str = ""
+    # Optional silent copy to the rep who owns the meeting.
+    email_bcc: str = ""
+
     slack_webhook_url: str = ""
     # Off for now while premature-escalation behavior is tuned live — the
     # LLM's own (now last-resort-only) judgment is the sole escalation path.

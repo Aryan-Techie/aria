@@ -4,15 +4,17 @@ dispatch call with tool_call_started/finished + event-specific publishes, per
 the plan's RTM event schema). Kept side-effect-scoped to (session, backing
 stores) so it's directly unit-testable without any LLM or network involved.
 """
-import os
 from datetime import datetime, timezone
 
+from app.background import run_in_background
 from app.calendar import service as calendar_service
+from app.calendar.labels import slot_label as _slot_label
 from app.calendar.models import SlotTakenError
 from app.crm import service as crm_service
 from app.escalation import service as escalation_service
 from app.escalation.models import TriggerSource
 from app.memory.schema import Objection
+from app.notify import service as notify_service
 from app.rag import retriever
 
 
@@ -81,17 +83,6 @@ def _crm_qualify_lead(tool_input: dict, session, **_) -> dict:
 
 
 
-def _slot_label(start: datetime) -> str:
-    """"Tuesday 1 September at 10:00 AM".
-
-    glibc and MSVC disagree on the no-padding strftime flag - "%-d" on Linux,
-    "%#d" on Windows - and the wrong one is not an error, it emits the literal
-    text. Branch on the platform rather than shipping "Tuesday %-d September".
-    """
-    fmt = "%A %#d %B at %#I:%M %p" if os.name == "nt" else "%A %-d %B at %-I:%M %p"
-    return start.strftime(fmt)
-
-
 def _calendar_check_availability(tool_input: dict, session, **_) -> dict:
     slots = calendar_service.list_available(
         _dt(tool_input.get("date_range_start")), _dt(tool_input.get("date_range_end"))
@@ -131,9 +122,17 @@ def _calendar_book_meeting(tool_input: dict, session, **_) -> dict:
         return {"error": str(exc)}
 
     session.booking_id = booking.id
+    session.booking_slot_id = tool_input["slot_id"]
     session.outcome = "meeting_booked"
     crm_service.qualify_lead(session.session_id, "meeting_booked", "meeting booked via calendar tool")
     slot = calendar_service.calendar_store.get_slot(tool_input["slot_id"])
+
+    if slot is not None:
+        # Off the turn path: an SMTP handshake takes 1-3s, which is spent
+        # directly out of Agora's webhook timeout window. The booking is
+        # already committed, so the reply must not wait on the email.
+        run_in_background(notify_service.on_booking, session, slot)
+
     return {"booking_id": booking.id, "slot": slot.model_dump(mode="json") if slot else None}
 
 

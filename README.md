@@ -94,6 +94,7 @@ browser (Next.js :3000) ──RTC audio──► Agora Conversational AI Engine
                                       ├─ bridge line spoken when a lookup fires
                                       ├─ TF-IDF RAG over the product docs
                                       ├─ CRM + calendar ──► EspoCRM (:8080, Docker)
+                                      ├─ confirmation email + .ics invite ──► SMTP
                                       ├─ escalation inbox
                                       └─ SSE stream back to Agora
 ```
@@ -141,6 +142,30 @@ the *automatic* fallback when the key is missing or EspoCRM is unreachable. A ba
 refuses to boot ten minutes before a demo is worse than one running on fixtures. Every CRM
 failure is logged and swallowed: these calls sit on the turn path, and a lost row is
 recoverable where a broken call is not.
+
+---
+
+## The customer gets the invite
+
+Booking a meeting sends the customer a confirmation email with a real calendar
+invite attached — accept it and the meeting lands in their Google or Outlook calendar.
+`.ics` built in-process (`app/notify/ics.py`), delivered over plain SMTP, so it needs one
+free Gmail App Password and no OAuth, no Calendar API, and no vendor SDK.
+
+Off unless `EMAIL_ENABLED=true`, and a no-op — never an error — when it is off, when the
+lead has no email address, or when the mail server refuses.
+
+**Two hooks, one email.** It fires from `calendar_book_meeting`, backgrounded so an SMTP
+handshake never spends the customer's patience mid-call, and again from `end_call`, which
+adds the recap of what was actually captured. The second is a backstop, not a duplicate:
+the "sent" flag is set only after a send that really succeeded, so a mail server that was
+down at booking time gets another attempt at call end, and a send that worked is not
+repeated. Booking-time alone would miss the retry; call-end alone would miss every call
+where nobody presses the End Call button.
+
+**Which means she has to ask for the address.** No email on the lead, no confirmation — so
+the prompt makes her ask for it once a time is picked and read it back before booking. ASR
+mangles email addresses more than anything else on a call.
 
 ---
 
@@ -195,6 +220,11 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 | `CRM_BACKEND` | `espocrm` or `memory` |
 | `ESPOCRM_API_KEY` | From `scripts/provision_crm.py` |
 | `ESPOCRM_ASSIGNED_USER_ID` | Meetings need a real assignee; an api-type user cannot be one |
+| `EMAIL_ENABLED` | Confirmation email + `.ics` invite on booking. Off by default |
+| `SMTP_HOST` / `SMTP_PORT` | 587 STARTTLS or 465 implicit TLS; any provider |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | Gmail needs an App Password, not the account password |
+| `EMAIL_FROM` | Blank falls back to `SMTP_USERNAME` - most providers reject anything else |
+| `EMAIL_BCC` | Optional silent copy to the rep on the meeting |
 | `MINIMAX_EMOTION` | `fluent` reads conversational; `happy` sounds like a chirpy IVR |
 | `FILLER_WORDS_ENABLED` | Agora's own stall phrases. Off — see Design notes |
 | `STATE_DIR` | JSON snapshots for the in-memory stores; blank = pure memory |
@@ -224,7 +254,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-109 tests, ~8s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+121 tests, ~8s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 
@@ -242,6 +272,9 @@ real credentials or touches disk, and the EspoCRM adapter is tested against
 | `backend/app/crm/espo_client.py` | EspoCRM REST client — auth, filters, datetime formats |
 | `backend/app/crm/espo_store.py` | Leads |
 | `backend/app/calendar/espo_store.py` | Meetings, with availability derived from real bookings |
+| `backend/app/notify/ics.py` | The `.ics` invite - folding, escaping, `METHOD:REQUEST` |
+| `backend/app/notify/mailer.py` | SMTP delivery and the MIME shape mail clients need |
+| `backend/app/notify/service.py` | Both send hooks, and the once-only guard across them |
 | `crm/docker-compose.yml` | EspoCRM + MariaDB + websocket + daemon |
 | `scripts/provision_crm.py` | Headless CRM setup |
 | `frontend/lib/agoraClient.ts` | RTC + RTM join/teardown, transcript handling |
