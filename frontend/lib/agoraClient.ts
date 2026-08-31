@@ -24,15 +24,45 @@ export interface TranscriptEvent {
   final?: boolean;
 }
 
-/** The exact field name/values the toolkit uses for "which side spoke" isn't
- * fully documented — normalize defensively (case-insensitive, several
- * plausible aliases) instead of a strict `=== "user"` check, which silently
- * misclassified every turn as "assistant" when the real value didn't match
- * exactly (confirmed live: nothing ever appeared as the customer). */
-function normalizeRole(role: unknown): "user" | "assistant" {
-  const r = String(role ?? "").toLowerCase();
+/** The toolkit emits NO `role` field on a transcript item (confirmed against
+ * `TranscriptHelperItem` in agora-agent-client-toolkit's own typings). Which
+ * side spoke is carried two other ways instead:
+ *
+ *   1. `metadata.object` - the discriminator on the raw message union,
+ *      "user.transcription" vs "assistant.transcription". Authoritative.
+ *   2. `uid` - the speaker's RTC uid. Ours is the uid we joined with; the
+ *      agent publishes under its own. Used when metadata is absent, which it
+ *      is for interim chunks (metadata is typed `T | null`).
+ *
+ * Reading a non-existent `turn.role` is what made EVERY turn fall through to
+ * "assistant", so the console labelled the customer's own speech "Aria". */
+function normalizeRole(turn: RawTranscriptTurn, localUid: string | null): "user" | "assistant" {
+  const object = String(turn.metadata?.object ?? "").toLowerCase();
+  if (object.startsWith("user.")) return "user";
+  if (object.startsWith("assistant.") || object.startsWith("agent.")) return "assistant";
+
+  if (localUid !== null && turn.uid !== undefined && String(turn.uid) === localUid) return "user";
+
+  // Last resort: some builds may still carry a role-ish string. Keep the
+  // permissive alias scan rather than a strict equality check.
+  const r = String(turn.role ?? "").toLowerCase();
   if (r.includes("user") || r.includes("customer") || r.includes("caller") || r.includes("human")) return "user";
   return "assistant";
+}
+
+/** Aria's spoken text carries MiniMax delivery markup - `<#0.3#>` pause
+ * markers and `(breath)` / `(sighs)` / `(laughs)` interjection tags (see
+ * SPEECH_STYLE_PROMPT in the backend). The voice engine turns those into
+ * audio, but the transcript Agora echoes back still contains them verbatim,
+ * so without this the timeline reads "(breath) Okay, let me check that."
+ * Strip them for display only - the audio is unaffected. */
+function stripSpeechMarkup(text: string): string {
+  return text
+    .replace(/<#\s*\d+(?:\.\d+)?\s*#>/g, " ")
+    .replace(/\((?:breath|breathes|sighs|sigh|laughs|laugh|humming|applause)\)/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .trim();
 }
 
 export interface RtmCustomEvent {
@@ -54,9 +84,18 @@ export interface CallCallbacks {
   onError?: (error: unknown) => void;
 }
 
+/** Shape of one item in a TRANSCRIPT_UPDATED payload. Mirrors the toolkit's
+ * `TranscriptHelperItem<Partial<UserTranscription | AgentTranscription>>`,
+ * kept loose (all optional) because interim items arrive partially filled. */
 interface RawTranscriptTurn {
-  role?: string;
+  uid?: string | number;
+  turn_id?: number;
+  stream_id?: number;
   text?: string;
+  status?: string;
+  metadata?: { object?: string } | null;
+  /** Not emitted by the current toolkit - retained only for the fallback. */
+  role?: string;
   content?: string;
   isFinal?: boolean;
   final?: boolean;
@@ -69,6 +108,9 @@ export class AgoraCallClient {
   private micTrack: IMicrophoneAudioTrack | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private api: any = null;
+  /** The uid we joined RTC with, so transcript items published under it can
+   * be attributed to the customer rather than to Aria. */
+  private localUid: string | null = null;
 
   async join(session: StartCallResponse, callbacks: CallCallbacks): Promise<void> {
     const { app_id: appId, channel_name: channelName, uid, rtc_token: rtcToken, rtm_token: rtmToken } = session;
@@ -79,6 +121,8 @@ export class AgoraCallClient {
       import("agora-agent-client-toolkit"),
     ]);
     const { ConversationalAIAPI, EConversationalAIAPIEvents } = ToolkitModule;
+
+    this.localUid = String(uid);
 
     this.rtcClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
@@ -146,11 +190,17 @@ export class AgoraCallClient {
           ? [payload as RawTranscriptTurn]
           : [];
 
+      // Key on the speaker + turn, not the array index: both sides carry the
+      // same turn_id for one exchange, so uid+turn_id is the natural id and
+      // survives the snapshot being reordered or re-emitted.
       const snapshot: TranscriptEvent[] = turns
         .map((turn, i) => ({
-          id: `transcript-${i}`,
-          role: normalizeRole(turn.role),
-          text: turn.text ?? turn.content ?? "",
+          id:
+            turn.turn_id !== undefined && turn.uid !== undefined
+              ? `${turn.uid}-${turn.turn_id}`
+              : `idx-${i}`,
+          role: normalizeRole(turn, this.localUid),
+          text: stripSpeechMarkup(turn.text ?? turn.content ?? ""),
           final: turn.isFinal ?? turn.final,
         }))
         .filter((t) => t.text);
