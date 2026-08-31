@@ -29,23 +29,51 @@ TOOLS: list[dict] = [
             "Create or update the qualification record for this call. Only pass "
             "fields the customer actually stated or changed — omitted fields are "
             "left untouched, so this is safe to call repeatedly as new details "
-            "come up (including corrections, e.g. user count changing)."
+            "come up (including corrections, e.g. user count changing). Capture "
+            "WHO you are speaking to as well as what they need: a caller who "
+            "opens with 'this is Priya from Northwind Logistics' has just given "
+            "you both name and company, and a record without them is of no use "
+            "to the rep who picks this lead up afterwards."
         ),
         "input_schema": {
             "type": "object",
+            # Every property carries its own description. Without them the
+            # model reliably filled in the numeric qualification fields and
+            # left name/company empty, even when the caller had stated both in
+            # their opening sentence - confirmed twice on scripted runs.
             "properties": {
-                "company": {"type": "string"},
-                "user_count": {"type": "integer"},
-                "budget_range": {"type": "string"},
-                "timeline": {"type": "string"},
-                "pain_points": {"type": "array", "items": {"type": "string"}},
+                "company": {
+                    "type": "string",
+                    "description": "The customer's company/organisation name, e.g. 'Northwind Logistics'.",
+                },
+                "user_count": {
+                    "type": "integer",
+                    "description": "How many devices or employees the deployment covers.",
+                },
+                "budget_range": {
+                    "type": "string",
+                    "description": "Budget as stated, e.g. 'around 60 thousand'.",
+                },
+                "timeline": {
+                    "type": "string",
+                    "description": "When they need the devices, e.g. 'end of October'.",
+                },
+                "pain_points": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "What is driving the change, in their words.",
+                },
                 "decision_stage": {
                     "type": "string",
                     "enum": ["discovery", "evaluating", "ready_to_buy", "not_a_fit"],
+                    "description": "How close they are to a decision, on your read of the call.",
                 },
-                "name": {"type": "string"},
-                "email": {"type": "string"},
-                "phone": {"type": "string"},
+                "name": {
+                    "type": "string",
+                    "description": "The name of the person on the call, e.g. 'Priya'.",
+                },
+                "email": {"type": "string", "description": "Their email address, if given."},
+                "phone": {"type": "string", "description": "Their phone number, if given."},
             },
         },
     },

@@ -115,3 +115,25 @@ def test_unknown_tool_returns_error_dict_not_exception():
     session = _session()
     result = executor.dispatch("not_a_real_tool", {}, session)
     assert "error" in result
+
+
+def test_availability_slots_carry_a_preformatted_label():
+    """Stamping today's date into the system prompt was not enough: asked for
+    Monday 7 September 2026 the model said "Sunday the seventh", and called
+    1 September "the second". Handing it the finished phrase removes the
+    arithmetic rather than asking it to be careful."""
+    from datetime import datetime
+
+    from app.sessions.models import SessionState
+    from app.tools import executor
+
+    session = SessionState(session_id="s", channel_name="c")
+    result = executor.dispatch("calendar_check_availability", {}, session)
+
+    assert result["slots"], "expected seeded slots"
+    for slot in result["slots"]:
+        start = datetime.fromisoformat(slot["start"].replace("Z", "+00:00"))
+        assert slot["label"].startswith(start.strftime("%A")), slot["label"]
+        # The platform-specific no-padding flag must not leak through as text.
+        assert "%" not in slot["label"]
+        assert "-" not in slot["label"]

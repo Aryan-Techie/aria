@@ -4,6 +4,7 @@ dispatch call with tool_call_started/finished + event-specific publishes, per
 the plan's RTM event schema). Kept side-effect-scoped to (session, backing
 stores) so it's directly unit-testable without any LLM or network involved.
 """
+import os
 from datetime import datetime, timezone
 
 from app.calendar import service as calendar_service
@@ -79,11 +80,43 @@ def _crm_qualify_lead(tool_input: dict, session, **_) -> dict:
     return {"lead_id": lead.id, "status": lead.status}
 
 
+
+def _slot_label(start: datetime) -> str:
+    """"Tuesday 1 September at 10:00 AM".
+
+    glibc and MSVC disagree on the no-padding strftime flag - "%-d" on Linux,
+    "%#d" on Windows - and the wrong one is not an error, it emits the literal
+    text. Branch on the platform rather than shipping "Tuesday %-d September".
+    """
+    fmt = "%A %#d %B at %#I:%M %p" if os.name == "nt" else "%A %-d %B at %-I:%M %p"
+    return start.strftime(fmt)
+
+
 def _calendar_check_availability(tool_input: dict, session, **_) -> dict:
     slots = calendar_service.list_available(
         _dt(tool_input.get("date_range_start")), _dt(tool_input.get("date_range_end"))
     )
-    return {"slots": [s.model_dump(mode="json") for s in slots]}
+
+    # `label` is pre-formatted rather than left to the model. Stamping today's
+    # date into the system prompt was not enough on its own: asked for slots
+    # on Monday 7 September 2026 the model offered "Sunday the seventh", and
+    # in an earlier run called 1 September "the second". A customer being
+    # asked to commit to a time hears that as carelessness. Handing over the
+    # finished phrase removes the arithmetic instead of asking it to be
+    # careful.
+    return {
+        "slots": [
+            {
+                **slot.model_dump(mode="json"),
+                "label": _slot_label(slot.start),
+            }
+            for slot in slots
+        ],
+        "speak_these_labels_verbatim": (
+            "Use each slot's `label` exactly as written when offering times - do "
+            "not work out the weekday or date yourself."
+        ),
+    }
 
 
 def _calendar_book_meeting(tool_input: dict, session, **_) -> dict:
