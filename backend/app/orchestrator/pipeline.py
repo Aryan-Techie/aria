@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.escalation import triggers
 from app.escalation.models import TranscriptTurn
 from app.memory.session_memory import safe_recall, safe_write_back
+from app.orchestrator import bridge_lines
 from app.orchestrator.llm_client import (
     ChatLLMClient,
     LLMTurn,
@@ -283,6 +284,10 @@ def run_turn_stream(
     escalate_called = False
     spoken_parts: list[str] = []
     turn: LLMTurn | None = None
+    # At most one bridge line per turn. Two in a row ("let me pull those up"
+    # ... "let me pull those up") is worse than none, and a turn that chains
+    # three hops would otherwise get one before each.
+    bridged = False
 
     for _hop in range(max_hops):
         system_prompt = _build_system_prompt(session, recalled_memories)
@@ -327,6 +332,18 @@ def run_turn_stream(
                 "empty conclusion on hop=%d, re-sampling, session=%s", _hop, session.session_id
             )
             continue
+
+        # Speak BEFORE dispatching, so the line covers the tool's own runtime
+        # plus the follow-up hop that turns its result into an answer - live
+        # that pair measured 4.6s + 3.4s of dead air. Only for tools the
+        # customer is actually waiting on, and only once per turn.
+        if not bridged:
+            waited_on = bridge_lines.speakable_tool([c.name for c in turn.tool_calls])
+            line = bridge_lines.line_for(waited_on) if waited_on else None
+            if line:
+                bridged = True
+                spoken_parts.append(line)
+                yield line
 
         escalate_called |= _execute_tool_calls(turn, session, publisher, messages)
     else:

@@ -60,6 +60,18 @@ class Settings(BaseSettings):
     # app/memory/session_memory.py::is_configured). Flip to True once fixed.
     memory_enabled: bool = False
 
+    # Which CRM backs the crm_* tools. "memory" is the original in-process
+    # store (fixtures + a JSON snapshot); "espocrm" talks to the real
+    # EspoCRM in crm/docker-compose.yml. Default stays "memory" so the test
+    # suite is hermetic and so a demo still runs if Docker will not start.
+    crm_backend: str = "memory"
+    espocrm_base_url: str = "http://localhost:8080"
+    espocrm_api_key: str = ""
+    # A Meeting must have an assignedUser and an api-type user cannot be one,
+    # so bookings are assigned to a regular user. Printed by
+    # scripts/provision_crm.py.
+    espocrm_assigned_user_id: str = ""
+
     slack_webhook_url: str = ""
     # Off for now while premature-escalation behavior is tuned live — the
     # LLM's own (now last-resort-only) judgment is the sole escalation path.
@@ -83,6 +95,36 @@ class Settings(BaseSettings):
     tts_credential_mode: str = "managed"
     minimax_model: str = "speech-2.8-turbo"
     minimax_voice_id: str = "English_captivating_female1"
+
+    # Delivery controls, all straight from MiniMax's t2a_v2 voice_setting.
+    # Agora forwards tts.params to MiniMax verbatim, so anything MiniMax
+    # accepts here works. Exposed as settings so the voice can be re-tuned
+    # between demo takes without a code change.
+    #   speed  - (0, 2]; slightly under 1 reads as considered rather than rushed
+    #   vol    - (0, 10]
+    #   pitch  - [-12, 12]
+    #   emotion- happy | sad | angry | fearful | disgusted | surprised |
+    #            calm | fluent | whisper. "fluent" is the conversational one;
+    #            "happy" oversells and reads as a chirpy IVR on a sales call.
+    minimax_speed: float = 0.96
+    minimax_vol: float = 1.0
+    minimax_pitch: int = 0
+    minimax_emotion: str = "fluent"
+    # Expands "$999", "M3", "24/7" etc. into spoken form instead of letting
+    # the model mangle them mid-sentence. Relevant here because nearly every
+    # answer Aria gives contains a price.
+    minimax_english_normalization: bool = True
+
+    # Agora can speak a stall phrase itself, triggered only on how long our
+    # webhook has been silent. OFF, because that trigger cannot express "speak
+    # when a tool fires": run_turn_stream buffers each hop, so even a turn
+    # calling NO tool takes 0.9-2.6s to first byte, which overlaps the 1.4s a
+    # tool hop takes. Set low enough to catch tool calls it fired on every
+    # single turn - confirmed live. The bridge line is emitted from our own
+    # pipeline instead, where the actual tool names are known:
+    # see orchestrator/bridge_lines.py.
+    filler_words_enabled: bool = False
+    filler_response_wait_ms: int = 800
 
     # Only used if TTS_VENDOR is switched to elevenlabs + TTS_CREDENTIAL_MODE to byok
     elevenlabs_api_key: str = ""

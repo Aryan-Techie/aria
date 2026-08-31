@@ -8,6 +8,59 @@ from app.config import Settings
 DEEPGRAM_WS_URL = "wss://api.deepgram.com/v1/listen"
 MINIMAX_WS_URL = "wss://api.minimax.io/ws/v1/t2a_v2"
 
+# Apple's real, public head office. Used rather than an invented branch
+# address so the agent is not stating a fabricated Apple location to a caller.
+GREETING_MESSAGE = (
+    "Thanks for calling Apple Business Sales, "
+    "Apple Park, One Apple Park Way in Cupertino. <#0.25#> "
+    "This is Aria speaking. <#0.2#> How can I help you today?"
+)
+
+# Kept short and low-commitment. Agora picks one at random the moment a turn
+# stalls, with no idea what the model is about to do, so anything that
+# promises a specific action ("I'll book that now") can contradict the answer
+# that follows. These only buy time.
+FILLER_PHRASES = [
+    "Let me pull that up for you. <#0.3#> One second.",
+    "Sure <#0.2#> give me just a second.",
+    "(breath) Okay, let me check that.",
+    "Mm, <#0.2#> one moment, I'm looking at it now.",
+    "Let me get you the exact number on that. <#0.3#> Bear with me.",
+    "Right, <#0.2#> just pulling that up.",
+]
+
+
+def _build_filler_words(settings: Settings) -> dict:
+    """Agora's own stall-cover, keyed off how long our webhook stays silent.
+
+    Both spellings of the nested config key appear in Agora's docs - the join
+    API reference calls them `fixed_time_config`/`static_config`, the request
+    examples call them both `config`. Sending both, with identical contents,
+    so whichever one this deployment validates against is present; Agora
+    ignores properties it does not recognise.
+    """
+    if not settings.filler_words_enabled:
+        return {}
+
+    trigger_config = {"response_wait_ms": settings.filler_response_wait_ms}
+    static_config = {"phrases": FILLER_PHRASES, "selection_rule": "shuffle"}
+
+    return {
+        "filler_words": {
+            "enable": True,
+            "trigger": {
+                "mode": "fixed_time",
+                "config": trigger_config,
+                "fixed_time_config": trigger_config,
+            },
+            "content": {
+                "mode": "static",
+                "config": static_config,
+                "static_config": static_config,
+            },
+        }
+    }
+
 
 def _build_asr_params(settings: Settings) -> dict:
     """"ares" under managed mode failed live against this account's SKU, but
@@ -30,7 +83,14 @@ def _build_tts_params(settings: Settings) -> dict:
         return {
             "url": MINIMAX_WS_URL,
             "model": settings.minimax_model,
-            "voice_setting": {"voice_id": settings.minimax_voice_id, "speed": 1.0},
+            "voice_setting": {
+                "voice_id": settings.minimax_voice_id,
+                "speed": settings.minimax_speed,
+                "vol": settings.minimax_vol,
+                "pitch": settings.minimax_pitch,
+                "emotion": settings.minimax_emotion,
+                "english_normalization": settings.minimax_english_normalization,
+            },
             "audio_setting": {"sample_rate": 44100},
         }
     if settings.tts_vendor == "elevenlabs":
@@ -87,8 +147,19 @@ def build_join_payload(
                 # backend, not here — avoids sending a duplicate system prompt.
                 "system_messages": [],
                 "max_history": 32,
-                "greeting_message": "Hi, thanks for calling Apple Business — I'm Aria. What can I help you with today?",
-                "failure_message": "Sorry, could you say that again? I didn't catch it.",
+                # Spoken verbatim by MiniMax, so it carries the same
+                # delivery markup the model uses mid-call: `<#x#>` is a pause
+                # of x seconds and `(...)` an interjection tag - both are
+                # speech-2.8 features, see SPEECH_STYLE_PROMPT in
+                # tools/prompts.py. Answered switchboard-style (org, location,
+                # name, offer) because a bare "Hi, I'm Aria" gives the caller
+                # nothing to confirm they reached the right place.
+                "greeting_message": GREETING_MESSAGE,
+                # What Agora's TTS says when our webhook times out, errors, or
+                # returns something invalid - NOT the model. If this line
+                # shows up mid-demo the backend is failing; read the log
+                # before touching the prompt.
+                "failure_message": "(breath) Sorry — could you say that once more? I didn't quite catch it.",
                 # Deliberately empty: tool calls are handled inside our own
                 # backend's loop, not delegated to Agora-routed MCP servers —
                 # see the plan's tradeoff note on llm.mcp_servers.
@@ -114,5 +185,14 @@ def build_join_payload(
                 "enable": True,
                 "mode": "start_of_speech",
             },
+            # Agora speaks one of these on its own if our webhook has produced
+            # no output for response_wait_ms. run_turn_stream buffers every
+            # tool hop and only yields on the concluding hop, so a RAG lookup
+            # or a calendar booking is several seconds of silence otherwise -
+            # this is what makes Aria say "let me pull that up" while she is
+            # genuinely pulling it up. The phrases carry `<#x#>` pause markers
+            # and speech-2.8 interjection tags for the same reason the rest of
+            # her speech does.
+            **_build_filler_words(settings),
         },
     }
