@@ -20,6 +20,9 @@ tsconfig.tsbuildinfo
 # Regenerated from fixtures on first run.
 backend/data/
 
+# Local session handover notes - kept out of the public repo by request
+CLAUDE.md
+
 # Local agent/editor tooling - machine-specific paths, not part of the app
 .claude/
 .codex/
@@ -29,3 +32,8 @@ backend/data/
 Thumbs.db
 .idea/
 .vscode/
+
+# Tunnel binary - ~70MB, and everyone needs their own platform's build.
+# run.bat picks it up from here if it is not on PATH.
+cloudflared.exe
+cloudflared
