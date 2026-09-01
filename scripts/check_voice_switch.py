@@ -30,7 +30,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--voice", default="", help="voice to switch to (default: the profile's deal-desk voice)")
+    parser.add_argument(
+        "--voice",
+        default="",
+        help="voice/speaker to switch to (default: the profile's deal-desk voice) - "
+        "a MiniMax voice id under TTS_VENDOR=minimax, a Sarvam speaker under sarvam",
+    )
     parser.add_argument("--hold", type=float, default=12.0, help="seconds to keep the new voice before reverting")
     parser.add_argument("--agent-id", default="", help="skip discovery and use this agent id")
     args = parser.parse_args()
@@ -41,6 +46,7 @@ def main() -> int:
     from app.config import get_settings
     from app.language.profiles import get_profile
     from app.sessions.store import session_store
+    from app.voice.director import resolve_sarvam_target, resolve_voice
 
     settings = get_settings()
     profile = get_profile(settings.agent_language)
@@ -65,15 +71,25 @@ def main() -> int:
                 return 1
             agent_id = running[-1].get("agent_id") or running[-1].get("id")
 
-    original = settings.minimax_voice_id or profile.voice_id
-    target = args.voice or profile.agent_voices.get("deal_desk") or original
+    if settings.tts_vendor == "sarvam":
+        original = resolve_sarvam_target(profile, role="aria")
+        target = (
+            {"speaker": args.voice, "target_language_code": profile.sarvam_language_code}
+            if args.voice
+            else resolve_sarvam_target(profile, role="deal_desk")
+        )
+    else:
+        original = settings.minimax_voice_id or profile.voice_id
+        target = args.voice or profile.agent_voices.get("deal_desk") or original
 
     print(f"agent    : {agent_id}")
     print(f"profile  : {profile.code}")
+    print(f"vendor   : {settings.tts_vendor}")
     print(f"switching: {original}  ->  {target}")
 
-    def switch(voice: str) -> bool:
-        payload = {"tts": {"params": {"voice_setting": {"voice_id": voice}}}}
+    def switch(voice) -> bool:
+        params = {"voice_setting": {"voice_id": voice}} if isinstance(voice, str) else voice
+        payload = {"tts": {"params": params}}
         try:
             client.update(agent_id, payload)
             print(f"  [OK]  update accepted -> {voice}")

@@ -145,3 +145,49 @@ def test_the_update_payload_touches_only_the_voice(live_call):
     assert client.updates
     _agent_id, properties = client.updates[0]
     assert properties == {"tts": {"params": {"voice_setting": {"voice_id": "English_Trustworth_Man"}}}}
+
+
+def test_resolve_sarvam_target_uses_the_cross_lingual_speaker():
+    """Unlike resolve_voice, there is no `language` argument - Sarvam
+    speakers work across languages, so only target_language_code varies,
+    and that comes from the profile, pinned for the whole call."""
+    assert director.resolve_sarvam_target(ENGLISH) == {"speaker": "priya", "target_language_code": "en-IN"}
+    assert director.resolve_sarvam_target(HINDI) == {"speaker": "priya", "target_language_code": "hi-IN"}
+
+
+def test_resolve_sarvam_target_gives_each_layer_its_own_speaker():
+    aria = director.resolve_sarvam_target(HINDI, role="aria")
+    desk = director.resolve_sarvam_target(HINDI, role="deal_desk")
+    solutions = director.resolve_sarvam_target(HINDI, role="solutions")
+    assert len({aria["speaker"], desk["speaker"], solutions["speaker"]}) == 3
+
+
+def test_ensure_voice_accepts_a_vendor_shaped_dict_for_sarvam(live_call):
+    """A Sarvam target is a (speaker, target_language_code) pair, not a
+    single id - ensure_voice has to send it as-is rather than nesting it
+    under MiniMax's voice_setting key."""
+    client = RecordingClient()
+    target = {"speaker": "dev", "target_language_code": "hi-IN"}
+    assert director.ensure_voice(live_call, target, client=client, settings=ON, runner=_now) is True
+
+    _agent_id, properties = client.updates[0]
+    assert properties == {"tts": {"params": {"speaker": "dev", "target_language_code": "hi-IN"}}}
+
+
+def test_ensure_voice_dedupes_a_sarvam_target_already_in_force(live_call):
+    client = RecordingClient()
+    target = {"speaker": "dev", "target_language_code": "hi-IN"}
+    assert director.ensure_voice(live_call, target, client=client, settings=ON, runner=_now) is True
+    assert director.ensure_voice(live_call, target, client=client, settings=ON, runner=_now) is False
+    assert len(client.updates) == 1
+
+
+def test_follow_sends_the_sarvam_shaped_target_when_that_is_the_vendor(live_call, monkeypatch):
+    settings = Settings(voice_switching_enabled=True, tts_vendor="sarvam", agent_language="hi")
+    monkeypatch.setattr("app.config.get_settings", lambda: settings)
+    client = RecordingClient()
+
+    assert director.follow(live_call, role="deal_desk", client=client, runner=_now) is True
+
+    _agent_id, properties = client.updates[0]
+    assert properties == {"tts": {"params": {"speaker": "kabir", "target_language_code": "hi-IN"}}}

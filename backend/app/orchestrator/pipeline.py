@@ -13,6 +13,7 @@ from typing import Callable, Iterator
 from app.config import get_settings
 from app.escalation import triggers
 from app.escalation.models import TranscriptTurn
+from app.language.profiles import strip_speech_markup
 from app.memory.session_memory import safe_recall, safe_write_back
 from app.orchestrator import bridge_lines
 from app.orchestrator.llm_client import (
@@ -25,7 +26,7 @@ from app.rtm.publisher import RtmPublisher, default_rtm_publisher
 from app.sessions.models import SessionState
 from app.tools import definitions, executor
 from app.voice import director
-from app.tools.prompts import ARIA_SYSTEM_PROMPT, build_system_prompt
+from app.tools.prompts import ARIA_SYSTEM_PROMPT, build_system_prompt, supports_speech_markup
 
 logger = logging.getLogger("aria")
 
@@ -419,6 +420,8 @@ def run_turn_stream(
         if not bridged:
             waited_on = bridge_lines.speakable_tool([c.name for c in turn.tool_calls])
             line = bridge_lines.line_for(waited_on) if waited_on else None
+            if line and not supports_speech_markup(get_settings()):
+                line = strip_speech_markup(line)
             if line:
                 bridged = True
                 spoken_parts.append(line)

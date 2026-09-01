@@ -11,7 +11,7 @@ import pytest
 
 from app.agora.join_payload import build_join_payload, warn_on_language_overrides
 from app.config import Settings
-from app.language.profiles import ENGLISH, HINDI, HINGLISH, get_profile
+from app.language.profiles import ENGLISH, HINDI, HINGLISH, get_profile, strip_speech_markup
 from app.orchestrator import bridge_lines
 from app.tools import prompts
 
@@ -48,18 +48,56 @@ def test_the_asr_language_goes_inside_params_where_agora_reads_it():
 
 
 def test_english_stays_exactly_as_it_was():
-    """The default must not move. Everything here is the behaviour that was
+    """The default vendor - now sarvam - must speak this profile's speaker
+    under the right language code. Everything here is the behaviour that was
     already confirmed working on live calls."""
     props = _props()
     assert props["asr"]["params"]["language"] == "en"
-    assert props["tts"]["params"]["voice_setting"]["voice_id"] == "English_captivating_female1"
-    assert props["tts"]["params"]["voice_setting"]["english_normalization"] is True
+    assert props["tts"]["params"]["speaker"] == "priya"
+    assert props["tts"]["params"]["target_language_code"] == "en-IN"
     assert "Apple Park" in props["llm"]["greeting_message"]
 
 
-def test_hindi_switches_the_recogniser_the_voice_and_the_boost_together():
+def test_hindi_switches_the_recogniser_and_the_target_language_together():
     """Any one of these left English is enough to break the call on its own."""
     props = _props(agent_language="hi")
+
+    assert props["asr"]["params"]["language"] == "hi"
+    assert props["tts"]["params"]["speaker"] == "priya"
+    assert props["tts"]["params"]["target_language_code"] == "hi-IN"
+
+
+def test_hinglish_uses_the_multilingual_recogniser():
+    """A buyer discussing a device fleet switches language inside a sentence;
+    a recogniser pinned to either one mangles the other half. Sarvam has no
+    per-utterance auto mode to match, so the TTS side stays pinned to Hindi
+    for the call - see test_hinglish_pins_sarvam_to_hindi below."""
+    props = _props(agent_language="hinglish")
+
+    assert props["asr"]["params"]["language"] == "multi"
+    assert props["tts"]["params"]["target_language_code"] == "hi-IN"
+
+
+def test_hinglish_pins_sarvam_to_hindi_since_there_is_no_auto_mode():
+    """MiniMax's language_boost="auto" lets it detect per utterance; Sarvam's
+    target_language_code is fixed per request, so the profile pins the
+    call to Hindi rather than guessing - matching what the MiniMax hinglish
+    profile does by default too (pins hindi_female_1_v2)."""
+    assert HINGLISH.sarvam_language_code == "hi-IN"
+
+
+def test_sarvam_speaker_is_cross_lingual_across_profiles():
+    """Unlike MiniMax's language-specific voice ids, the same Sarvam speaker
+    covers every language profile - only target_language_code changes."""
+    assert ENGLISH.sarvam_speaker == HINDI.sarvam_speaker == HINGLISH.sarvam_speaker == "priya"
+    assert ENGLISH.sarvam_language_code == "en-IN"
+    assert HINDI.sarvam_language_code == HINGLISH.sarvam_language_code == "hi-IN"
+
+
+def test_minimax_fallback_keeps_switching_the_recogniser_the_voice_and_the_boost_together():
+    """The behaviour MiniMax shipped with, still selectable via
+    TTS_VENDOR=minimax if Sarvam has problems on a live call."""
+    props = _props(agent_language="hi", tts_vendor="minimax")
 
     assert props["asr"]["params"]["language"] == "hi"
     assert props["tts"]["params"]["voice_setting"]["voice_id"] == "hindi_female_1_v2"
@@ -68,12 +106,8 @@ def test_hindi_switches_the_recogniser_the_voice_and_the_boost_together():
     assert props["tts"]["params"]["voice_setting"]["english_normalization"] is False
 
 
-def test_hinglish_uses_the_multilingual_recogniser_and_lets_minimax_detect():
-    """A buyer discussing a device fleet switches language inside a sentence;
-    a recogniser pinned to either one mangles the other half."""
-    props = _props(agent_language="hinglish")
-
-    assert props["asr"]["params"]["language"] == "multi"
+def test_minimax_fallback_hinglish_lets_minimax_detect():
+    props = _props(agent_language="hinglish", tts_vendor="minimax")
     assert props["tts"]["params"]["language_boost"] == "auto"
 
 
@@ -81,7 +115,7 @@ def test_language_boost_is_top_level_in_the_minimax_params_not_in_voice_setting(
     """MiniMax puts language_boost at the top of the request body. Agora
     forwards what it does not validate straight through, so the nesting has to
     be MiniMax's, not a guess."""
-    params = _props(agent_language="hi")["tts"]["params"]
+    params = _props(agent_language="hi", tts_vendor="minimax")["tts"]["params"]
 
     assert "language_boost" in params
     assert "language_boost" not in params["voice_setting"]
@@ -104,9 +138,16 @@ def test_a_typo_in_the_language_costs_the_wrong_language_not_a_dead_call():
 def test_an_explicit_setting_still_wins_over_the_profile():
     """Pinning `hi` instead of the code-switching `multi`, or choosing the
     male Hindi voice, are both real things to want."""
-    props = _props(agent_language="hinglish", asr_language="hi", minimax_voice_id="hindi_male_1_v2")
+    props = _props(
+        agent_language="hinglish", asr_language="hi", tts_vendor="minimax", minimax_voice_id="hindi_male_1_v2"
+    )
     assert props["asr"]["params"]["language"] == "hi"
     assert props["tts"]["params"]["voice_setting"]["voice_id"] == "hindi_male_1_v2"
+
+
+def test_an_explicit_sarvam_speaker_still_wins_over_the_profile():
+    props = _props(agent_language="hi", sarvam_speaker="rahul")
+    assert props["tts"]["params"]["speaker"] == "rahul"
 
 
 def test_a_leftover_english_pin_fighting_the_profile_says_so_loudly():
@@ -176,10 +217,31 @@ def test_an_untranslated_tool_falls_back_to_english_rather_than_dead_air():
 
 
 def test_agora_speaks_the_profiles_filler_phrases_not_the_english_ones():
-    filler = _props(agent_language="hi", filler_words_enabled=True)["filler_words"]
+    """On the minimax fallback, which renders the markup, the phrases go out
+    exactly as written in the profile."""
+    filler = _props(agent_language="hi", tts_vendor="minimax", filler_words_enabled=True)["filler_words"]
     phrases = filler["content"]["config"]["phrases"]
     assert phrases == HINDI.filler_phrases
     assert all(any("ऀ" <= ch <= "ॿ" for ch in phrase) for phrase in phrases)
+
+
+def test_sarvam_filler_phrases_have_the_minimax_markup_stripped():
+    """Sarvam has no delivery-markup feature - the profile's own phrases carry
+    MiniMax's <#x#>/(breath) markup, and it must not reach Sarvam as literal
+    text."""
+    filler = _props(agent_language="hi", filler_words_enabled=True)["filler_words"]
+    phrases = filler["content"]["config"]["phrases"]
+    assert phrases != HINDI.filler_phrases
+    assert not any("<#" in phrase or "(breath)" in phrase for phrase in phrases)
+    assert all(any("ऀ" <= ch <= "ॿ" for ch in phrase) for phrase in phrases)
+
+
+def test_strip_speech_markup_removes_pauses_and_interjections_only():
+    assert strip_speech_markup("Okay <#0.2#> let me pull that up.") == "Okay let me pull that up."
+    assert strip_speech_markup("(breath) Right, checking that now.") == "Right, checking that now."
+    assert strip_speech_markup("एक सेकंड <#0.3#> मैं अभी देखती हूँ.") == "एक सेकंड मैं अभी देखती हूँ."
+    # Text with no markup at all survives untouched.
+    assert strip_speech_markup("How can I help you today?") == "How can I help you today?"
 
 
 def test_every_profile_is_internally_complete():
@@ -189,6 +251,8 @@ def test_every_profile_is_internally_complete():
         assert profile.asr_language
         assert profile.voice_id
         assert profile.language_boost
+        assert profile.sarvam_speaker
+        assert profile.sarvam_language_code
         assert profile.greeting
         assert profile.failure_message
         assert profile.filler_phrases

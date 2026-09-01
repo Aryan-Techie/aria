@@ -10,7 +10,8 @@ rule cannot be set independently of one another.
 import logging
 
 from app.config import Settings
-from app.language.profiles import LanguageProfile, get_profile
+from app.language.profiles import LanguageProfile, get_profile, strip_speech_markup
+from app.tools.prompts import supports_speech_markup
 
 logger = logging.getLogger("aria")
 
@@ -46,6 +47,11 @@ def warn_on_language_overrides(settings: Settings, profile: LanguageProfile) -> 
             f"MINIMAX_VOICE_ID={settings.minimax_voice_id!r} overrides the {profile.code!r} "
             f"profile's {profile.voice_id!r}; blank it in .env to follow AGENT_LANGUAGE."
         )
+    if settings.sarvam_speaker and settings.sarvam_speaker != profile.sarvam_speaker:
+        warnings.append(
+            f"SARVAM_SPEAKER={settings.sarvam_speaker!r} overrides the {profile.code!r} "
+            f"profile's {profile.sarvam_speaker!r}; blank it in .env to follow AGENT_LANGUAGE."
+        )
     for warning in warnings:
         logger.warning("language override: %s", warning)
     return warnings
@@ -68,8 +74,12 @@ def _build_filler_words(settings: Settings, profile: LanguageProfile) -> dict:
     if not settings.filler_words_enabled:
         return {}
 
+    phrases = profile.filler_phrases
+    if not supports_speech_markup(settings):
+        phrases = [strip_speech_markup(phrase) for phrase in phrases]
+
     trigger_config = {"response_wait_ms": settings.filler_response_wait_ms}
-    static_config = {"phrases": profile.filler_phrases, "selection_rule": "shuffle"}
+    static_config = {"phrases": phrases, "selection_rule": "shuffle"}
 
     return {
         "filler_words": {
@@ -149,6 +159,30 @@ def _build_tts_params(settings: Settings, profile: LanguageProfile) -> dict:
             "voice_id": settings.elevenlabs_voice_id,
             "sample_rate": 24000,
         }
+    if settings.tts_vendor == "sarvam":
+        # No url/base_url field: unlike minimax and elevenlabs, Agora's own
+        # docs for this vendor (docs.agora.io/en/ai/models/tts/sarvam) show no
+        # endpoint field in the params - it resolves Sarvam's endpoint itself.
+        # Confirmed live: Agora forwards these to Sarvam's own API verbatim
+        # (matches its documented "unrecognised params are forwarded" claim),
+        # and Sarvam's bulbul:v3 (the only model left - v2 is deprecated)
+        # rejects the request outright if `pitch` or `loudness` are present
+        # at all, even at their neutral defaults ("Pitch and loudness
+        # parameters are currently not supported for the Bulbul V3 model.
+        # Please do not pass these values.") - that 400 is what was silently
+        # stalling every greeting/turn before this fix. `pace` is fine.
+        params = {
+            "api_subscription_key": settings.sarvam_api_key,
+            "model": settings.sarvam_model,
+            "speaker": settings.sarvam_speaker or profile.sarvam_speaker,
+            "target_language_code": profile.sarvam_language_code,
+            "pace": settings.sarvam_pace,
+            "sample_rate": settings.sarvam_sample_rate,
+        }
+        if not settings.sarvam_model.startswith("bulbul:v3"):
+            params["pitch"] = settings.sarvam_pitch
+            params["loudness"] = settings.sarvam_loudness
+        return params
     return {}
 
 
@@ -165,6 +199,10 @@ def build_join_payload(
     profile = profile_for(settings)
     warn_on_language_overrides(settings, profile)
 
+    markup_ok = supports_speech_markup(settings)
+    greeting = profile.greeting if markup_ok else strip_speech_markup(profile.greeting)
+    failure_message = profile.failure_message if markup_ok else strip_speech_markup(profile.failure_message)
+
     return {
         "name": f"aria-{session_id[:8]}",
         "properties": {
@@ -176,6 +214,16 @@ def build_join_payload(
                 # RTM channel is how we publish our own qualification_updated /
                 # tool_call_started / escalation_triggered events (see rtm/publisher.py)
                 "enable_rtm": True,
+            },
+            # enable_rtm alone isn't enough - confirmed live, the frontend's
+            # own toolkit warns "No AGENT_STATE_CHANGED events received after
+            # 15s (RTM is configured). Ensure the agent was started with
+            # advanced_features.enable_rtm: true and parameters.data_channel:
+            # 'rtm'" until this is set too. Without it Agora delivers
+            # transcript/state/error messages over the legacy RTC data
+            # channel instead of true RTM.
+            "parameters": {
+                "data_channel": "rtm",
             },
             "asr": {
                 "vendor": settings.asr_vendor,
@@ -197,21 +245,22 @@ def build_join_payload(
                 # backend, not here — avoids sending a duplicate system prompt.
                 "system_messages": [],
                 "max_history": 32,
-                # Spoken verbatim by MiniMax, so it carries the same
-                # delivery markup the model uses mid-call: `<#x#>` is a pause
-                # of x seconds and `(...)` an interjection tag - both are
-                # speech-2.8 features, see SPEECH_STYLE_PROMPT in
-                # tools/prompts.py. Answered switchboard-style (org, location,
+                # Spoken verbatim by the configured TTS. On minimax speech-2.8
+                # it carries the same delivery markup the model uses mid-call:
+                # `<#x#>` is a pause of x seconds and `(...)` an interjection
+                # tag - see SPEECH_STYLE_PROMPT in tools/prompts.py. Stripped
+                # above for any vendor that would speak that markup as literal
+                # text instead. Answered switchboard-style (org, location,
                 # name, offer) because a bare "Hi, I'm Aria" gives the caller
                 # nothing to confirm they reached the right place. Comes from
                 # the language profile: this is the first thing the caller
                 # hears, so it decides which language they answer in.
-                "greeting_message": profile.greeting,
+                "greeting_message": greeting,
                 # What Agora's TTS says when our webhook times out, errors, or
                 # returns something invalid - NOT the model. If this line
                 # shows up mid-demo the backend is failing; read the log
                 # before touching the prompt.
-                "failure_message": profile.failure_message,
+                "failure_message": failure_message,
                 # Deliberately empty: tool calls are handled inside our own
                 # backend's loop, not delegated to Agora-routed MCP servers —
                 # see the plan's tradeoff note on llm.mcp_servers.

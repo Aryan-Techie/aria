@@ -39,6 +39,7 @@ most dramatic moment of the call. So:
 """
 from __future__ import annotations
 
+import json
 import logging
 
 from app.background import run_in_background
@@ -104,17 +105,39 @@ def agent_for_tools(tool_names) -> str:
 
 
 def resolve_voice(profile: LanguageProfile, *, role: str = "aria", language: str | None = None) -> str:
-    """The voice that should be speaking, given who is talking and in what
-    language. Role wins over language: the deal desk sounding like the deal
-    desk is the point, and it has one voice per profile rather than one per
-    language, which keeps this a lookup rather than a matrix."""
+    """The MiniMax voice that should be speaking, given who is talking and in
+    what language. Role wins over language: the deal desk sounding like the
+    deal desk is the point, and it has one voice per profile rather than one
+    per language, which keeps this a lookup rather than a matrix."""
     if role != "aria":
         return profile.agent_voices.get(role) or profile.voice_id
     return voice_for_language(profile, language)
 
 
-def ensure_voice(session, voice_id: str, *, client=None, settings=None, runner=run_in_background) -> bool:
-    """Put `voice_id` in force for this call, if it is not already.
+def resolve_sarvam_target(profile: LanguageProfile, *, role: str = "aria") -> dict:
+    """The Sarvam speaker/language pair for whoever is talking.
+
+    Unlike MiniMax's voice ids, Sarvam speakers are cross-lingual, so there is
+    no per-language variant to pick between here - `language` doesn't factor
+    in. `target_language_code` stays pinned to the profile's language for the
+    whole call, same as MiniMax's own hinglish profile pins one voice by
+    default; Sarvam has no per-utterance "auto" mode to switch on instead.
+    """
+    speaker = profile.sarvam_speaker
+    if role != "aria":
+        speaker = profile.sarvam_agent_speakers.get(role) or speaker
+    return {"speaker": speaker, "target_language_code": profile.sarvam_language_code}
+
+
+def ensure_voice(session, voice, *, client=None, settings=None, runner=run_in_background) -> bool:
+    """Put `voice` in force for this call, if it is not already.
+
+    `voice` is either a MiniMax voice id string (the shape every caller used
+    before Sarvam existed) or a vendor-shaped tts.params dict such as the one
+    resolve_sarvam_target() returns - Sarvam's identity is a (speaker,
+    target_language_code) pair, not a single id, so a bare string can't carry
+    it. Either way this treats it as opaque: build a params dict to send, and
+    a string key to dedupe against the voice already in force.
 
     Returns whether an update was dispatched - False covers every no-op
     reason, and none of them raise. The update itself runs through `runner`,
@@ -128,16 +151,22 @@ def ensure_voice(session, voice_id: str, *, client=None, settings=None, runner=r
 
         settings = get_settings()
 
-    if not settings.voice_switching_enabled or not voice_id:
+    if not settings.voice_switching_enabled or not voice:
         return False
-    if not session.agent_id or session.current_voice_id == voice_id:
+
+    if isinstance(voice, str):
+        params, cache_key = {"voice_setting": {"voice_id": voice}}, voice
+    else:
+        params, cache_key = voice, json.dumps(voice, sort_keys=True)
+
+    if not session.agent_id or session.current_voice_id == cache_key:
         return False
 
     # Recorded before the update lands, deliberately. Two hops of one turn can
     # ask for the same switch, and a second round-trip buys nothing; a failed
     # update leaves the record optimistic, which costs the wrong voice rather
     # than a retry storm on a live call.
-    session.current_voice_id = voice_id
+    session.current_voice_id = cache_key
 
     if client is None:
         from app.agora.client import default_agora_client
@@ -146,13 +175,10 @@ def ensure_voice(session, voice_id: str, *, client=None, settings=None, runner=r
 
     def _apply() -> None:
         try:
-            client.update(
-                session.agent_id,
-                {"tts": {"params": {"voice_setting": {"voice_id": voice_id}}}},
-            )
-            logger.info("voice -> %s (session %s)", voice_id, session.session_id)
+            client.update(session.agent_id, {"tts": {"params": params}})
+            logger.info("voice -> %s (session %s)", cache_key, session.session_id)
         except Exception as exc:
-            logger.warning("voice switch to %s failed: %s", voice_id, exc)
+            logger.warning("voice switch to %s failed: %s", cache_key, exc)
 
     runner(_apply)
     return True
@@ -165,5 +191,10 @@ def follow(session, *, role: str = "aria", spoken_language: str | None = None, *
     to be in flight before it is spoken."""
     from app.config import get_settings
 
-    profile = get_profile(get_settings().agent_language)
-    return ensure_voice(session, resolve_voice(profile, role=role, language=spoken_language), **kwargs)
+    settings = get_settings()
+    profile = get_profile(settings.agent_language)
+    if settings.tts_vendor == "sarvam":
+        voice = resolve_sarvam_target(profile, role=role)
+    else:
+        voice = resolve_voice(profile, role=role, language=spoken_language)
+    return ensure_voice(session, voice, settings=settings, **kwargs)

@@ -151,8 +151,43 @@ class Settings(BaseSettings):
     deepgram_model: str = "nova-3"
     deepgram_api_key: str = ""  # only used if ASR_CREDENTIAL_MODE is switched to byok
 
-    tts_vendor: str = "minimax"
-    tts_credential_mode: str = "managed"
+    # sarvam is the default TTS vendor: it speaks the Indian languages this
+    # app actually calls in natively, rather than as a secondary market.
+    # Agora's docs (docs.agora.io/en/ai/models/tts/sarvam) show no managed
+    # mode for it - the key travels inline in tts.params - so this is byok,
+    # like elevenlabs below, not managed like minimax/deepgram.
+    tts_vendor: str = "sarvam"
+    tts_credential_mode: str = "byok"
+    sarvam_api_key: str = ""
+    # Sarvam deprecated bulbul:v2 - confirmed live, a direct call to Sarvam's
+    # own REST API with no model field returns "Model 'bulbul:v2' has been
+    # deprecated. Please use 'bulbul:v3' instead." Sent explicitly rather than
+    # left to whatever Agora defaults to internally, since Agora's own sarvam
+    # docs still describe v2's speaker names.
+    sarvam_model: str = "bulbul:v3"
+    # Blank takes the language profile's speaker. Unlike MiniMax, Sarvam
+    # speakers are cross-lingual - the same speaker id works across
+    # target_language_code values, so one speaker per persona covers every
+    # language this app speaks rather than needing an English AND a Hindi id.
+    sarvam_speaker: str = ""
+    # [-0.75, 0.75] / [0.1, 3.0]. Confirmed live: bulbul:v3 rejects the whole
+    # request if either is present at all ("Pitch and loudness parameters are
+    # currently not supported for the Bulbul V3 model"), so join_payload.py
+    # only sends these when sarvam_model isn't v3 - kept here for a future/
+    # older model that does support them, not used by the current default.
+    sarvam_pitch: float = 0.0
+    sarvam_loudness: float = 1.0
+    # [0.3, 3.0], per Sarvam's documented range. Still honoured on v3.
+    sarvam_pace: float = 1.0
+    # 8000 | 16000 | 22050 | 24000, per Sarvam's documented options.
+    sarvam_sample_rate: int = 24000
+
+    # Fallback vendor - swap TTS_VENDOR back to "minimax" (and
+    # TTS_CREDENTIAL_MODE to "managed") if Sarvam has problems on a live call.
+    # Confirmed working under managed mode on this account before the swap to
+    # Sarvam: Agora validates minimax's real public endpoint URL against its
+    # own allowlist, then injects its own key server-side, so no api_key is
+    # needed here even though it stays selectable.
     minimax_model: str = "speech-2.8-turbo"
     # Blank takes the language profile's voice. MiniMax voice ids are
     # language-specific: an English voice reading Devanagari is not accented

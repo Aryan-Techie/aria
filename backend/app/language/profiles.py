@@ -42,7 +42,23 @@ expectation rather than a measured fact.
 """
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field
+
+# MiniMax speech-2.8 delivery markup: `<#x#>` pause tags and
+# (breath)/(sighs)/(laughs) interjections, embedded directly in every
+# greeting/failure/filler string below and in bridge_lines.py. Only speech-2.8
+# renders them as audio - every other vendor, including Sarvam, would speak
+# them as literal text ("open paren breath close paren"), so anything bound
+# for a non-minimax TTS needs this run over it first.
+_MARKUP = re.compile(r"<#[\d.]+#>|\((?:breath|sighs|laughs)\)")
+
+
+def strip_speech_markup(text: str) -> str:
+    """Removes MiniMax-only delivery markup, collapsing the whitespace it
+    leaves behind so the stripped line still reads as one sentence."""
+    return re.sub(r"\s{2,}", " ", _MARKUP.sub("", text)).strip()
 
 
 class LanguageProfile(BaseModel):
@@ -68,6 +84,16 @@ class LanguageProfile(BaseModel):
     # customer heard all of it in her voice, which made the layering invisible
     # to the person it was built for.
     agent_voices: dict[str, str] = Field(default_factory=dict)
+    # Sarvam equivalents of voice_id/agent_voices above. Sarvam speakers are
+    # cross-lingual - the same speaker id works under any target_language_code
+    # - so there is no per-language variant to carry the way MiniMax needs one.
+    # Speaker names are bulbul:v3's - Sarvam deprecated bulbul:v2 (confirmed
+    # live: "Model 'bulbul:v2' has been deprecated") which is what Agora's own
+    # docs still document the speaker list for (anushka/abhilash/karun etc) -
+    # those 400 against the current API. priya/kabir/dev are v3 names.
+    sarvam_speaker: str = ""
+    sarvam_language_code: str = ""
+    sarvam_agent_speakers: dict[str, str] = Field(default_factory=dict)
     # MiniMax's digit/abbreviation expansion is an English/Chinese feature.
     # Leaving it on for a Hindi voice spends latency on a pass that does not
     # apply.
@@ -101,6 +127,13 @@ ENGLISH = LanguageProfile(
         # Clipped and male, so the change of person registers in one word.
         "deal_desk": "English_Trustworth_Man",
         "solutions": "English_Gentle-voiced_man",
+    },
+    sarvam_speaker="priya",
+    sarvam_language_code="en-IN",
+    sarvam_agent_speakers={
+        "aria": "priya",
+        "deal_desk": "kabir",
+        "solutions": "dev",
     },
     greeting=(
         "Thanks for calling Apple Business Sales, "
@@ -137,6 +170,13 @@ HINDI = LanguageProfile(
         # desk's job description.
         "deal_desk": "hindi_male_1_v2",
         "solutions": "hindi_female_2_v1",
+    },
+    sarvam_speaker="priya",
+    sarvam_language_code="hi-IN",
+    sarvam_agent_speakers={
+        "aria": "priya",
+        "deal_desk": "kabir",
+        "solutions": "dev",
     },
     greeting=(
         "Apple Business Sales में आपका स्वागत है. <#0.25#> "
@@ -184,6 +224,16 @@ HINGLISH = LanguageProfile(
         "aria": "hindi_female_1_v2",
         "deal_desk": "hindi_male_1_v2",
         "solutions": "hindi_female_2_v1",
+    },
+    # Pinned for the whole call, same as voice_id above: Sarvam has no
+    # per-utterance "auto" language mode to match MiniMax's language_boost, so
+    # a mid-call switch would need voice_switching_enabled (off by default).
+    sarvam_speaker="priya",
+    sarvam_language_code="hi-IN",
+    sarvam_agent_speakers={
+        "aria": "priya",
+        "deal_desk": "kabir",
+        "solutions": "dev",
     },
     greeting=(
         "Apple Business Sales में आपका स्वागत है. <#0.25#> "
