@@ -5,6 +5,7 @@ import { TransportRail, type CallStatus } from "@/components/TransportRail";
 import { SessionTimeline, type SessionEvent } from "@/components/SessionTimeline";
 import { PatchBay, type LeftBrainView } from "@/components/PatchBay";
 import { AlarmChannel } from "@/components/AlarmChannel";
+import { DealFader, type DealRound } from "@/components/DealFader";
 import { AgoraCallClient, type RtmCustomEvent, type TranscriptEvent } from "@/lib/agoraClient";
 import { endCall, fetchSessionEvents, startCall } from "@/lib/api";
 
@@ -30,6 +31,10 @@ export default function Home() {
   const [events, setEvents] = useState<SessionEvent[]>([]);
   const [leftBrain, setLeftBrain] = useState<LeftBrainView | null>(null);
   const [escalationReason, setEscalationReason] = useState<string | null>(null);
+  const [dealRounds, setDealRounds] = useState<DealRound[]>([]);
+  const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
+  const [approvedPct, setApprovedPct] = useState<number | null>(null);
+  const [approvedBy, setApprovedBy] = useState<string | null>(null);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -100,6 +105,44 @@ export default function Home() {
             body: `objection logged — ${String(event.payload.topic ?? "unspecified")}`,
           });
           break;
+        case "deal_offer_made": {
+          const round = event.payload as unknown as DealRound;
+          // Keyed on the round number rather than appended, because a poll
+          // that overlaps a retry would otherwise print the same round twice.
+          setDealRounds((prev) => {
+            const next = prev.filter((r) => r.round !== round.round);
+            return [...next, round].sort((a, b) => a.round - b.round);
+          });
+          pushEvent({
+            kind: "tool",
+            label: "deal",
+            body:
+              `round ${round.round} - gave ${round.granted_pct}% ` +
+              `(${String(round.authorised_by).replace("_", " ")})` +
+              (round.clamped ? ` - clamped: ${round.clamp_reason}` : ""),
+          });
+          break;
+        }
+        case "deal_approval_requested": {
+          setPendingApprovalId(String(event.payload.escalation_id ?? ""));
+          pushEvent({
+            kind: "escalation",
+            label: "approval",
+            body: "deal desk at its ceiling - a human signature is needed, call still live",
+          });
+          break;
+        }
+        case "deal_approval_granted": {
+          setPendingApprovalId(null);
+          setApprovedPct(Number(event.payload.approved_pct));
+          setApprovedBy(String(event.payload.approved_by ?? "a manager"));
+          pushEvent({
+            kind: "outcome",
+            label: "approval",
+            body: `${event.payload.approved_pct}% signed off by ${event.payload.approved_by}`,
+          });
+          break;
+        }
         case "escalation_triggered": {
           const reason = String(event.payload.reason ?? event.payload.trigger_source ?? "handoff triggered");
           setEscalationReason(reason);
@@ -171,6 +214,10 @@ export default function Home() {
       startedAtRef.current = Date.now();
       setElapsedSeconds(0);
       setEvents([]);
+      setDealRounds([]);
+      setPendingApprovalId(null);
+      setApprovedPct(null);
+      setApprovedBy(null);
 
       const client = new AgoraCallClient();
       clientRef.current = client;
@@ -221,6 +268,12 @@ export default function Home() {
 
       <aside className="rail rail-patchbay">
         <PatchBay leftBrain={leftBrain} />
+        <DealFader
+          rounds={dealRounds}
+          pendingApprovalId={pendingApprovalId}
+          approvedPct={approvedPct}
+          approvedBy={approvedBy}
+        />
         <AlarmChannel reason={escalationReason} />
       </aside>
     </div>

@@ -58,3 +58,22 @@ export async function fetchSessionEvents(
   if (!res.ok) throw new Error(`Failed to fetch session events: ${res.status}`);
   return res.json();
 }
+
+/**
+ * Layer 3, in one click: a human signing off a discount while the call is
+ * still running. The backend writes the figure onto the live session and
+ * Aria offers it on her next turn - see routes/admin.py::approve_discount.
+ */
+export async function approveDiscount(
+  escalationId: string,
+  approvedPct: number,
+  approvedBy = "sales manager"
+): Promise<{ approved_pct: number; applied_to_live_call: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/api/inbox/${escalationId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ approved_pct: approvedPct, approved_by: approvedBy }),
+  });
+  if (!res.ok) throw new Error(`Approval failed: ${res.status}`);
+  return res.json();
+}
