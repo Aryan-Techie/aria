@@ -18,6 +18,7 @@ get_settings.cache_clear()
 from app.calendar.store import calendar_store  # noqa: E402
 from app.crm.store import lead_store  # noqa: E402
 from app.escalation.inbox import inbox  # noqa: E402
+from app.handoff import service as handoff_service  # noqa: E402
 from app.sessions.store import session_store  # noqa: E402
 
 
@@ -30,4 +31,5 @@ def reset_global_stores():
     calendar_store.reset()
     inbox.reset()
     session_store.reset()
+    handoff_service.reset()
     yield

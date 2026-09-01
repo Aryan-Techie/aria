@@ -11,6 +11,7 @@ from app.agora.join_payload import build_join_payload
 from app.background import run_in_background
 from app.config import Settings, get_settings
 from app.crm import service as crm_service
+from app.handoff import service as handoff_service
 from app.notify import service as notify_service
 from app.sessions.models import SessionState
 from app.sessions.store import SessionStore, session_store
@@ -135,5 +136,12 @@ def end_call(
     # was booked, or when email is off. Backgrounded because this endpoint is
     # what the browser's End Call button waits on.
     run_in_background(notify_service.on_call_end, session, store=store)
+
+    # And the rep is told what happened, on every call rather than only the
+    # ones that escalated. A qualified lead nobody was told about is the same
+    # as no lead. Backgrounded for the same reason as the confirmation: this
+    # endpoint is what the browser's End Call button waits on, and the
+    # wrap-up costs a model call plus up to three deliveries.
+    run_in_background(handoff_service.on_call_end, session)
 
     return {"session_id": session_id, "status": session.status, "outcome": outcome}

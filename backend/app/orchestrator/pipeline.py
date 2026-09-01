@@ -192,6 +192,7 @@ def _execute_tool_calls(
     tool_result_blocks = []
 
     for call in turn.tool_calls:
+        session.tool_calls.append(call.name)
         publisher.publish(session.session_id, "tool_call_started", {"tool_name": call.name, "args": call.input})
         result = executor.dispatch(call.name, call.input, session)
         publisher.publish(

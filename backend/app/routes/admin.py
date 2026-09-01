@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.calendar import service as calendar_service
 from app.crm import service as crm_service
 from app.escalation.inbox import inbox
+from app.handoff import service as handoff_service
 from app.rtm.publisher import default_rtm_publisher
 from app.sessions.store import session_store
 
@@ -26,6 +27,20 @@ def list_slots() -> list[dict]:
 @router.get("/api/inbox")
 def list_inbox() -> list[dict]:
     return [record.model_dump(mode="json") for record in inbox.all()]
+
+
+@router.get("/api/summaries")
+def list_summaries() -> list[dict]:
+    """The wrap-up produced when each call ended - what the rep was told."""
+    return [summary.model_dump(mode="json") for summary in handoff_service.all_summaries()]
+
+
+@router.get("/api/summaries/{session_id}")
+def get_summary(session_id: str) -> dict:
+    summary = handoff_service.get(session_id)
+    if summary is None:
+        raise HTTPException(status_code=404, detail=f"No wrap-up for session: {session_id}")
+    return summary.model_dump(mode="json")
 
 
 class ApprovalRequest(BaseModel):

@@ -38,6 +38,12 @@ class SessionState(BaseModel):
     # delivery to the UI proved unreliable; the panels are cosmetic, so they
     # get a transport we fully control rather than one we cannot debug.
     events: list[dict] = Field(default_factory=list)
+    # Every tool dispatched on this call, in order and with repeats. Kept
+    # on the session rather than derived from `events`, because those only
+    # land here when the RTM recorder is in the publisher chain - and what
+    # work the agent did is not allowed to depend on whether credentials
+    # for a UI side-channel happen to be configured.
+    tool_calls: list[str] = Field(default_factory=list)
     left_brain: LeftBrain = Field(default_factory=LeftBrain)
     right_brain: RightBrain = Field(default_factory=RightBrain)
     # Every round of bargaining on this call, as authorised - not as the

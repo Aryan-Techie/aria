@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     email_reply_to: str = ""
     # Optional silent copy to the rep who owns the meeting.
     email_bcc: str = ""
+    # Where the end-of-call wrap-up is emailed. Blank sends none - the
+    # wrap-up still lands on the CRM record, which needs no configuration
+    # at all and is where the rep already is.
+    rep_summary_email: str = ""
 
     slack_webhook_url: str = ""
     # Off for now while premature-escalation behavior is tuned live — the

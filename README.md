@@ -220,6 +220,36 @@ mangles email addresses more than anything else on a call.
 
 ---
 
+## Every call ends with a human being told
+
+Not only the escalations. A qualified lead nobody was told about is the same as no lead, so
+`end_call` builds a wrap-up and delivers it - `app/handoff/`.
+
+It is deliberately not the escalation brief. That one answers *why am I being pulled into a
+live call*; this answers *what happened on a call I was not on, and what do I do about it*:
+a headline, one recommended action with an urgency, then what they need, **what was already
+agreed** (the discount that stands, the quote she read out, the commitments they were asked
+for), what we owe them, and what to watch out for.
+
+**The model writes two sentences and nothing else.** The headline and the next action are
+generated; every fact under them is read off the records the tools wrote during the call. A
+summariser handed a raw transcript will confidently produce a detail nobody said, and a rep
+who opens a call with an invented detail is worse off than a rep with a thin summary. If the
+model call fails, `heuristic_summary` writes both sentences off the call outcome and the
+wrap-up still goes out.
+
+**Three delivery routes, in decreasing order of setup.** The **CRM record** always, with no
+configuration at all - it is where the rep already is, and a summary that needs a Slack
+workspace to exist does not exist on a fresh machine. **Slack** when a webhook is set, because
+that is the one that arrives while the lead is still worth calling back. **Email** to
+`REP_SUMMARY_EMAIL` when SMTP is configured. Each is independent and best-effort: a Slack
+outage does not cost the CRM note, and `deliver()` returns which routes actually took it, so
+"the rep was told" is checkable rather than assumed.
+
+Readable at `GET /api/summaries` and `GET /api/summaries/{session_id}`.
+
+---
+
 ## Design notes
 
 **Memory without a memory service.** Tools write qualification state — company, device count,
@@ -276,6 +306,7 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | Gmail needs an App Password, not the account password |
 | `EMAIL_FROM` | Blank falls back to `SMTP_USERNAME` - most providers reject anything else |
 | `EMAIL_BCC` | Optional silent copy to the rep on the meeting |
+| `REP_SUMMARY_EMAIL` | Where the end-of-call wrap-up is emailed. Blank still writes it to the CRM |
 | `MINIMAX_EMOTION` | `fluent` reads conversational; `happy` sounds like a chirpy IVR |
 | `FILLER_WORDS_ENABLED` | Agora's own stall phrases. Off — see Design notes |
 | `STATE_DIR` | JSON snapshots for the in-memory stores; blank = pure memory |
@@ -283,7 +314,7 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 ### Debug endpoints
 
 `GET /healthz` · `GET /api/leads` · `GET /api/calendar/slots` · `GET /api/inbox` ·
-`GET /api/session/{id}/events` · `POST /api/inbox/{id}/approve`
+`GET /api/session/{id}/events` · `POST /api/inbox/{id}/approve` · `GET /api/summaries`
 
 ---
 
@@ -305,7 +336,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-157 tests, ~7s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+171 tests, ~10s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 
@@ -329,6 +360,9 @@ real credentials or touches disk, and the EspoCRM adapter is tested against
 | `backend/app/notify/ics.py` | The `.ics` invite - folding, escaping, `METHOD:REQUEST` |
 | `backend/app/notify/mailer.py` | SMTP delivery and the MIME shape mail clients need |
 | `backend/app/notify/service.py` | Both send hooks, and the once-only guard across them |
+| `backend/app/handoff/builder.py` | The end-of-call wrap-up; facts off the record, two sentences from the model |
+| `backend/app/handoff/delivery.py` | CRM note, Slack, email - independent and best-effort |
+| `backend/app/metrics/savings.py` | How much human time a call actually took off someone's desk |
 | `crm/docker-compose.yml` | EspoCRM + MariaDB + websocket + daemon |
 | `scripts/provision_crm.py` | Headless CRM setup |
 | `frontend/lib/agoraClient.ts` | RTC + RTM join/teardown, transcript handling |
