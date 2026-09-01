@@ -94,7 +94,54 @@ def _render_call_state(session: SessionState) -> str:
             "reworded one:\n" + "\n".join(signals)
         )
 
+    negotiation = _render_negotiation(session)
+    if negotiation:
+        sections.append(negotiation)
+
     return "\n\n".join(sections)
+
+
+def _render_negotiation(session: SessionState) -> str:
+    """What she has already put on the table, and what she may still say.
+
+    Without this she re-opens every round from zero: the tool result from two
+    turns ago has scrolled out of the useful part of the history, and a
+    negotiator who forgets her own last offer either repeats it as if it were
+    new or, worse, contradicts it. The authorised figure is restated every
+    hop, from the record rather than from the transcript, so what she believes
+    she offered and what the business actually authorised cannot drift apart.
+    """
+    negotiation = session.negotiation
+    offer = negotiation.last_offer
+    if offer is None:
+        return ""
+
+    lines = [
+        f"- You have already offered {negotiation.granted_discount_pct:g}% off list "
+        f"(round {negotiation.round_count}, authorised by {offer.authorised_by}). "
+        "That number stands - never go below it, and never present it again as if it were new.",
+        f"- The numbers you gave, verbatim: {offer.price_summary}",
+    ]
+    if offer.commitments:
+        lines.append(
+            "- You asked for this in return, so hold them to it: "
+            + "; ".join(c.detail for c in offer.commitments)
+        )
+    if negotiation.human_approved_pct is not None:
+        lines.append(
+            f"- Your sales manager has now approved {negotiation.human_approved_pct:g}%. "
+            "You may offer that in your very next reply - lead with it, they have been waiting on it."
+        )
+    elif negotiation.pending_human_approval:
+        lines.append(
+            "- A sales manager is being asked about a larger discount right now. Say it is with "
+            "your manager and you will confirm before the call ends. Do NOT state it as agreed."
+        )
+    lines.append(
+        "- If they push again, call negotiate_deal again rather than moving on your own. "
+        "Each round the desk allows less than the last, and that is deliberate."
+    )
+    return "Where the negotiation stands:\n" + "\n".join(lines)
 
 
 def _build_system_prompt(session: SessionState, memories: list[str]) -> str:
@@ -162,6 +209,33 @@ def _execute_tool_calls(
             publisher.publish(session.session_id, "objection_logged", result)
         elif call.name == "calendar_book_meeting" and "error" not in result:
             publisher.publish(session.session_id, "call_outcome_set", {"outcome": "meeting_booked", **result})
+        elif call.name == "negotiate_deal" and "error" not in result:
+            offer = session.negotiation.last_offer
+            publisher.publish(
+                session.session_id,
+                "deal_offer_made",
+                {
+                    "round": offer.round if offer else session.negotiation.round_count,
+                    "requested_pct": offer.requested_discount_pct if offer else None,
+                    "granted_pct": result.get("granted_discount_pct"),
+                    "authorised_by": result.get("authorised_by"),
+                    # The audit line: what the desk wanted, and what stopped it.
+                    # Nothing else in the UI can show that a limit was enforced
+                    # rather than merely respected.
+                    "clamped": offer.clamped if offer else False,
+                    "clamp_reason": offer.clamp_reason if offer else None,
+                    "asked_in_return": result.get("ask_for_in_return", []),
+                },
+            )
+            if result.get("awaiting_human_approval"):
+                publisher.publish(
+                    session.session_id,
+                    "deal_approval_requested",
+                    {
+                        "escalation_id": session.negotiation.approval_escalation_id,
+                        "requested_pct": offer.requested_discount_pct if offer else None,
+                    },
+                )
 
         tool_result_blocks.append(
             {"type": "tool_result", "tool_use_id": call.id, "content": json.dumps(result, default=str)}

@@ -11,6 +11,7 @@ from app.calendar import service as calendar_service
 from app.calendar.labels import slot_label as _slot_label
 from app.calendar.models import SlotTakenError
 from app.crm import service as crm_service
+from app.deal import desk, engine, policy
 from app.escalation import service as escalation_service
 from app.escalation.models import TriggerSource
 from app.memory.schema import Objection
@@ -151,6 +152,163 @@ def _escalate_to_human(tool_input: dict, session, *, trigger_source: TriggerSour
     return {"escalation_id": record.id, "inbox_position": position}
 
 
+def _negotiate_deal(tool_input: dict, session, **_) -> dict:
+    """The three layers, in one tool call.
+
+    Layer 1 (Aria) does not decide this. She reports what was asked; the deal
+    desk (layer 2, its own agent and its own model call) proposes; the engine
+    clamps that proposal against policy; and if what the desk wants is past
+    what it is allowed to sign, a human (layer 3) is asked - without ending
+    the call, because a question about margin is not a handoff.
+
+    What comes back is deliberately finished: a preformatted price sentence,
+    the concessions to offer, and the commitment to ask for in return. The
+    same reasoning as the calendar slot labels - the model reads out a number
+    rather than working one out, because a wrong price said to a buyer is
+    unrecoverable in a way a wrong weekday is not.
+    """
+    mix = tool_input.get("device_mix") or None
+    units = sum(int(entry.get("quantity") or 0) for entry in mix) if mix else 0
+    units = units or session.left_brain.user_count or 0
+    if units <= 0:
+        return {
+            "error": "no_device_count",
+            "guidance": (
+                "Nothing can be priced yet. Ask how many devices they are "
+                "looking at, record it with crm_upsert_lead, then negotiate."
+            ),
+        }
+
+    term_months = policy.DEFAULT_POLICY.financing_months if tool_input.get("financing") else 0
+    trade_in = int(tool_input.get("trade_in_devices") or 0)
+    negotiation = session.negotiation
+
+    base = engine.build_quote(
+        units=units, device_mix=mix, trade_in_devices=trade_in, term_months=term_months
+    )
+
+    requested_pct = tool_input.get("requested_discount_pct")
+    if requested_pct is None and tool_input.get("target_total_price"):
+        requested_pct = engine.discount_for_target(base, float(tool_input["target_total_price"]))
+    if requested_pct is None and tool_input.get("target_unit_price"):
+        requested_pct = engine.discount_for_target(
+            base, float(tool_input["target_unit_price"]) * base.units
+        )
+    requested_pct = float(requested_pct) if requested_pct is not None else None
+
+    round_number = negotiation.round_count + 1
+    proposal = desk.consult(
+        customer_ask=tool_input["customer_ask"],
+        requested_pct=requested_pct,
+        list_total=base.list_total,
+        units=base.units,
+        tier_name=base.tier_name,
+        volume_discount_pct=base.volume_discount_pct,
+        already_granted=negotiation.granted_discount_pct,
+        round_number=round_number,
+        competitor_quote=tool_input.get("competitor_quote"),
+        qualification=session.left_brain.model_dump_json(),
+        objections="; ".join(o.raised_text for o in session.right_brain.objections),
+    )
+
+    granted, authorised_by, clamped, clamp_reason, requires_human = engine.authorise(
+        requested_pct=proposal.recommended_discount_pct,
+        round_number=round_number,
+        already_granted=negotiation.granted_discount_pct,
+        has_commitment=bool(proposal.commitments),
+        human_approved_pct=negotiation.human_approved_pct,
+    )
+
+    offer = engine.build_offer(
+        round_number=round_number,
+        customer_ask=tool_input["customer_ask"],
+        requested_pct=requested_pct,
+        granted_pct=granted,
+        authorised_by=authorised_by,
+        clamped=clamped,
+        clamp_reason=clamp_reason,
+        requires_human=requires_human,
+        concessions=proposal.concessions,
+        commitments=proposal.commitments,
+        rationale=proposal.rationale,
+        units=units,
+        device_mix=mix,
+        trade_in_devices=trade_in,
+        term_months=term_months,
+    )
+
+    negotiation.rounds.append(offer)
+    negotiation.granted_discount_pct = granted
+
+    crm_service.add_note(
+        session.session_id,
+        f"Round {round_number}: asked {requested_pct if requested_pct is not None else 'unspecified'}"
+        f" -> granted {granted:g}% (authorised by {authorised_by})"
+        + (f"; {clamp_reason}" if clamp_reason else "")
+        + (
+            "; asked in return: " + ", ".join(c.detail for c in offer.commitments)
+            if offer.commitments
+            else ""
+        ),
+    )
+
+    if requires_human and not negotiation.pending_human_approval:
+        # Not escalate_to_human: that hands the call over and ends it. The
+        # customer stays with Aria while one person answers one question.
+        record, _position = escalation_service.escalate(
+            session.session_id,
+            f"Deal desk recommends {proposal.recommended_discount_pct:g}% on "
+            f"{base.units} devices (${base.list_total:,.0f} list); above the desk's "
+            f"own ceiling, so it needs a human signature.",
+            "deal_approval",
+            kind="deal_approval",
+            transcript=session.transcript,
+            left_brain=session.left_brain,
+            right_brain=session.right_brain,
+            lead_id=session.crm_lead_id,
+        )
+        negotiation.pending_human_approval = True
+        negotiation.approval_escalation_id = record.id
+
+    return {
+        "price_summary": offer.price_summary,
+        "granted_discount_pct": granted,
+        "authorised_by": authorised_by,
+        "offer_concessions": [c.detail for c in offer.concessions],
+        "ask_for_in_return": [c.detail for c in offer.commitments],
+        "desk_read": proposal.read,
+        "awaiting_human_approval": negotiation.pending_human_approval,
+        "guidance": _negotiation_guidance(offer, negotiation),
+    }
+
+
+def _negotiation_guidance(offer, negotiation) -> str:
+    """What she is allowed to say about this offer, in one line.
+
+    Written here rather than left to the prompt because it is the difference
+    between "I can do ten percent" and "I've asked my manager about ten
+    percent" - and saying the first while the second is true is a promise the
+    business has not made.
+    """
+    if negotiation.pending_human_approval and offer.requires_human:
+        return (
+            f"Offer the {offer.granted_discount_pct:g}% you are authorised for NOW - do not make "
+            "them wait for it. Say you have gone to your sales manager for the rest and will "
+            "confirm before the call ends. Do NOT state the higher number as agreed."
+        )
+    if offer.granted_discount_pct <= 0:
+        return (
+            "No discount is authorised. Do not apologise your way out of this - lead with the "
+            "levers above, which cost them nothing, and ask what is actually driving the number: "
+            "the total, the unit price, the timing of the spend, or a competing quote."
+        )
+    return (
+        "Read price_summary as the numbers - do not recalculate any of it. Offer the concessions, "
+        "then ask for what is in ask_for_in_return in the same breath. Never give ground without "
+        "asking for something back."
+    )
+
+
 def _log_objection(tool_input: dict, session, **_) -> dict:
     topic = tool_input["topic"]
     resolved = tool_input.get("resolved", False)
@@ -188,6 +346,7 @@ _HANDLERS = {
     "crm_qualify_lead": _crm_qualify_lead,
     "calendar_check_availability": _calendar_check_availability,
     "calendar_book_meeting": _calendar_book_meeting,
+    "negotiate_deal": _negotiate_deal,
     "escalate_to_human": _escalate_to_human,
     "log_objection": _log_objection,
     "update_sentiment": _update_sentiment,

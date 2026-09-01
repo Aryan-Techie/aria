@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from app.escalation.models import EscalationRecord
 from app.persistence import load_state, save_state
 
@@ -31,6 +33,26 @@ class Inbox:
 
     def all(self) -> list[EscalationRecord]:
         return list(self._records)
+
+    def get(self, record_id: str) -> EscalationRecord | None:
+        return next((r for r in self._records if r.id == record_id), None)
+
+    def resolve_approval(self, record_id: str, approved_pct: float, approved_by: str):
+        """Records a human's answer to a discount approval request.
+
+        Kept on the inbox rather than on the session because this is the
+        human's side of the exchange: the queue is what a person is looking
+        at, and the record is what they answered. The session picks the answer
+        up separately - see routes/admin.py::approve_discount.
+        """
+        record = self.get(record_id)
+        if record is None:
+            return None
+        record.approved_pct = approved_pct
+        record.approved_by = approved_by
+        record.resolved_at = datetime.now(timezone.utc)
+        self._persist()
+        return record
 
     def reset(self) -> None:
         self._records = []

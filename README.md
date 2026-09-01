@@ -90,7 +90,7 @@ browser (Next.js :3000) ──RTC audio──► Agora Conversational AI Engine
                                                 │
                                     FastAPI (:8000) ── this repo
                                       ├─ Groq primary / Anthropic fallback
-                                      ├─ tool loop (8 tools, max 6 hops)
+                                      ├─ tool loop (9 tools, max 6 hops)
                                       ├─ bridge line spoken when a lookup fires
                                       ├─ TF-IDF RAG over the product docs
                                       ├─ CRM + calendar ──► EspoCRM (:8080, Docker)
@@ -111,10 +111,11 @@ were OpenAI (`style: "openai"`) and streaming the SSE response into TTS chunk by
 **This repo:** the persona, the tool loop, RAG, CRM and calendar, qualification state,
 escalation, and every word she actually says. Agora never sees any of it.
 
-### The eight tools
+### The nine tools
 
 `search_pricing_rag` · `crm_upsert_lead` · `crm_qualify_lead` · `calendar_check_availability`
-· `calendar_book_meeting` · `escalate_to_human` · `log_objection` · `update_sentiment`
+· `calendar_book_meeting` · `negotiate_deal` · `escalate_to_human` · `log_objection` ·
+`update_sentiment`
 
 ---
 
@@ -142,6 +143,56 @@ the *automatic* fallback when the key is missing or EspoCRM is unreachable. A ba
 refuses to boot ten minutes before a demo is worse than one running on fixtures. Every CRM
 failure is logged and swallowed: these calls sit on the turn path, and a lost row is
 recoverable where a broken call is not.
+
+---
+
+## She bargains, and she is not allowed to give the deal away
+
+A buyer asking for a discount is the most ordinary thing on a sales call, and it is also
+where an LLM is at its most dangerous: it will happily agree to forty percent because
+agreeing is what makes the sentence flow. So the negotiation runs on three layers, and the
+model is not the last thing standing between a customer and the margin.
+
+**Layer 1 - Aria.** She can say yes to 3% on her own, instantly. Anything past that she does
+not decide. Ask for a discount, name a target price, or wave a competitor's quote and she
+calls `negotiate_deal` rather than answering.
+
+**Layer 2 - the deal desk** (`app/deal/desk.py`). A genuinely separate agent: its own system
+prompt, its own model call, its own view of the call, and no ability to speak to the customer
+at all. It reasons about margin, which is a different job from holding a conversation, and
+asking one prompt to do both is how you get an agent that is either a pushover on price or a
+robot to talk to. It can sign up to 10%, and only ever against a commitment.
+
+**Layer 3 - a human.** Past the desk's ceiling, a person is asked - *without ending the call*.
+A question about margin is not a handoff, so the customer stays with Aria while a manager
+answers one question. `POST /api/inbox/{id}/approve` writes their figure onto the live
+session, the next system prompt renders it, and she can lead her next sentence with a number
+a human signed seconds earlier.
+
+**The desk proposes; code decides.** `engine.authorise` is the clamp, and it is where the
+guarantees actually live rather than in prompt text:
+
+| Rule | Why |
+|---|---|
+| Nothing past the 18% walk-away floor, ever | Deterministic. The desk is not consulted, because this is the one number a generation must not talk the business past |
+| Above 10% holds the offer at 10% and asks a human | She offers what she *is* authorised for immediately and says the rest is with her manager - never that it is agreed |
+| Discounts above 3% need a commitment attached | A concession given for nothing teaches the buyer that waiting is free |
+| Each round moves less than the last (5%, +3%, +1.8%...) | A negotiator who moves five, then five, then five has taught them to keep pushing |
+| A discount is never clawed back | Someone who heard 8% never hears 7% later, whatever the desk proposes next |
+
+A desk that recommends 40% is a generation away, not a hypothesis, so that is exactly what the
+tests feed in - and what comes out is a capped offer, a `clamped` flag and a reason. Every
+round is written to the CRM as an audit line: what was asked, what was granted, which layer
+authorised it, and what was demanded in return.
+
+**Arithmetic is not left to the model** - the same call as the calendar labels. `negotiate_deal`
+returns a finished `price_summary` ("60 x MacBook Air (M3). List $59,940... that is $902 a
+device, $54,145 for the fleet") and the prompt says to read it, not recompute it. A wrong price
+said to a buyer is unrecoverable in a way a wrong weekday is not.
+
+**The pause is honest.** The desk sits on the turn path, so the bridge line covering it is
+"let me see what I can do on that" - which is what a rep says while checking with their
+manager, because that is exactly what is happening.
 
 ---
 
@@ -232,7 +283,7 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 ### Debug endpoints
 
 `GET /healthz` · `GET /api/leads` · `GET /api/calendar/slots` · `GET /api/inbox` ·
-`GET /api/session/{id}/events`
+`GET /api/session/{id}/events` · `POST /api/inbox/{id}/approve`
 
 ---
 
@@ -254,7 +305,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-121 tests, ~8s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+157 tests, ~7s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 
@@ -265,6 +316,9 @@ real credentials or touches disk, and the EspoCRM adapter is tested against
 | Path | What |
 |---|---|
 | `backend/app/orchestrator/pipeline.py` | The turn loop; `run_turn_stream` is the production path |
+| `backend/app/deal/policy.py` | The commercial envelope - tiers, authority caps, the walk-away floor |
+| `backend/app/deal/engine.py` | Pricing, and `authorise` - the clamp the desk cannot argue with |
+| `backend/app/deal/desk.py` | Layer 2: the deal desk agent, its own prompt and its own model call |
 | `backend/app/orchestrator/bridge_lines.py` | "Let me pull that up", chosen by which tool fired |
 | `backend/app/tools/prompts.py` | Persona and speech markup — behaviour lives here, not in code |
 | `backend/app/tools/definitions.py` | The eight tool schemas |

@@ -54,3 +54,11 @@ def test_lines_are_short_and_free_of_markdown():
             assert len(line) < 80, line
             assert not any(ch in line for ch in "*_|`"), line
             assert not line.endswith("<#0.2#>")
+
+
+def test_the_deal_desk_wait_is_narrated():
+    """The one bridge line where the pause is doing something the customer
+    would recognise: a second agent is genuinely deciding what we can give
+    away, and "let me see what I can do" is what a rep says while checking."""
+    assert bridge_lines.speakable_tool(["negotiate_deal"]) == "negotiate_deal"
+    assert bridge_lines.line_for("negotiate_deal")

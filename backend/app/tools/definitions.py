@@ -140,6 +140,69 @@ TOOLS: list[dict] = [
         },
     },
     {
+        "name": "negotiate_deal",
+        "description": (
+            "Work out what you are actually allowed to offer when the customer "
+            "pushes on price - a discount request, a target number, a competing "
+            "quote, or 'what's your best price'. This consults the deal desk and "
+            "returns a priced, authorised offer. You must call this before "
+            "putting ANY discount, target price, or trade-in figure to the "
+            "customer: a number you worked out yourself is not an offer the "
+            "business has agreed to, and quoting one you cannot honour is worse "
+            "than saying no. Call it again each time they push again - the desk "
+            "tracks what has already been conceded."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer_ask": {
+                    "type": "string",
+                    "description": "What they asked for, in their own words.",
+                },
+                "requested_discount_pct": {
+                    "type": "number",
+                    "description": "Only if they named a percentage, e.g. 15 for 'fifteen percent off'.",
+                },
+                "target_total_price": {
+                    "type": "number",
+                    "description": "Only if they named a total they need to hit, e.g. 90000.",
+                },
+                "target_unit_price": {
+                    "type": "number",
+                    "description": "Only if they named a per-device price they need, e.g. 850.",
+                },
+                "competitor_quote": {
+                    "type": "string",
+                    "description": "The competing quote they are holding over you, if any.",
+                },
+                "device_mix": {
+                    "type": "array",
+                    "description": (
+                        "The fleet, when they have specified models. Omit it and "
+                        "the whole fleet is priced as MacBook Airs."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "model": {"type": "string"},
+                            "quantity": {"type": "integer"},
+                        },
+                        "required": ["model", "quantity"],
+                    },
+                },
+                "trade_in_devices": {
+                    "type": "integer",
+                    "description": "How many devices they would trade in, if they have said.",
+                },
+                "financing": {
+                    "type": "boolean",
+                    "description": "True if the blocker is cash flow rather than total cost.",
+                },
+            },
+            "required": ["customer_ask"],
+        },
+    },
+    {
         "name": "update_sentiment",
         "description": "Record a noticeable shift in the customer's tone.",
         "input_schema": {

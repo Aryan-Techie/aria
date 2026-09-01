@@ -1,5 +1,5 @@
 from app.escalation.inbox import Inbox, inbox as default_inbox
-from app.escalation.models import EscalationRecord, TranscriptTurn, TriggerSource
+from app.escalation.models import EscalationKind, EscalationRecord, TranscriptTurn, TriggerSource
 from app.escalation.notifier import notify_slack
 from app.escalation.summarizer import LLMClient, summarize
 from app.memory.schema import LeftBrain, RightBrain
@@ -14,6 +14,7 @@ def escalate(
     left_brain: LeftBrain,
     right_brain: RightBrain,
     lead_id: str | None = None,
+    kind: EscalationKind = "handoff",
     summarizer_client: LLMClient | None = None,
     webhook_url: str | None = None,
     store: Inbox = default_inbox,
@@ -32,6 +33,7 @@ def escalate(
         lead_id=lead_id,
         reason=reason,
         trigger_source=trigger_source,
+        kind=kind,
         brief=brief,
         transcript=transcript,
         left_brain=left_brain,

@@ -74,6 +74,22 @@ def qualify_lead(
     return store.save(lead)
 
 
+def add_note(session_id: str, note: str, *, store: LeadStore = lead_store) -> Lead:
+    """Append a line to the lead's record without touching its status.
+
+    Used for the negotiation audit trail: every concession that was
+    authorised, by which layer, and what was asked for in return. A rep
+    picking this lead up needs to know what was already promised on the call
+    before they open their mouth.
+    """
+    lead = store.get_by_session(session_id)
+    if lead is None:
+        lead = Lead(session_id=session_id)
+    lead.notes.append(note)
+    lead.updated_at = _now()
+    return store.save(lead)
+
+
 def get_lead(session_id: str, *, store: LeadStore = lead_store) -> Lead | None:
     return store.get_by_session(session_id)
 

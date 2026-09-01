@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.deal.models import NegotiationState
 from app.escalation.models import TranscriptTurn
 from app.memory.schema import LeftBrain, RightBrain
 
@@ -39,6 +40,9 @@ class SessionState(BaseModel):
     events: list[dict] = Field(default_factory=list)
     left_brain: LeftBrain = Field(default_factory=LeftBrain)
     right_brain: RightBrain = Field(default_factory=RightBrain)
+    # Every round of bargaining on this call, as authorised - not as the
+    # deal desk proposed it. See app/deal/engine.py::authorise.
+    negotiation: NegotiationState = Field(default_factory=NegotiationState)
     last_rag_score: float | None = None
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

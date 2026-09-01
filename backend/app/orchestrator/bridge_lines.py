@@ -39,6 +39,7 @@ _LOOKUP_TOOLS = {
     "search_pricing_rag",
     "calendar_check_availability",
     "calendar_book_meeting",
+    "negotiate_deal",
 }
 
 # Per-tool, so the line matches the wait. `<#x#>` pauses and (breath) are
@@ -60,6 +61,16 @@ _LINES: dict[str, tuple[str, ...]] = {
         "Perfect <#0.2#> let me lock that in.",
         "Great, <#0.2#> booking that in now.",
         "Okay, <#0.2#> putting that in the calendar.",
+    ),
+    # The only line here where the wait is doing something the customer would
+    # recognise: a second agent, the deal desk, is genuinely deciding what we
+    # can give away. Saying so is not a stall - it is what a rep says when
+    # they go and check, and the pause is the check.
+    "negotiate_deal": (
+        "Let me see what I can do on that. <#0.3#> One second.",
+        "(breath) Okay <#0.2#> let me check what I can get approved for you.",
+        "Right <#0.2#> let me take that to our deal desk and see where we land.",
+        "Give me a moment <#0.25#> I want to come back to you with a real number.",
     ),
 }
 

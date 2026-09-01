@@ -69,13 +69,19 @@ class AnthropicChatClient:
 
     def create_turn(self, *, system: str, messages: list[dict], tools: list[dict]) -> LLMTurn:
         client = self._get_client()
-        response = client.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=system,
-            messages=messages,
-            tools=tools,
-        )
+        # `tools` is omitted rather than passed empty: the deal desk
+        # (app/deal/desk.py) reuses this client for a plain JSON completion
+        # with no toolset, and an empty array is not the same thing as no
+        # tools to the API.
+        kwargs = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "system": system,
+            "messages": messages,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        response = client.messages.create(**kwargs)
         text = "".join(b.text for b in response.content if b.type == "text")
         tool_calls = [
             ToolCall(id=b.id, name=b.name, input=b.input)
