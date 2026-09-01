@@ -331,6 +331,13 @@ others) with MiniMax's `language_boost: auto`, and the prompt tells her to match
 language the caller just used - Hindi for the conversation, English for product names,
 numbers and dates, which is how the call is actually held in an Indian office.
 
+**She never says a language is unsupported.** Found on a live Hindi call: handed a garbled
+transcript she answered that she only understands English. That was not her decision to make,
+she had no way to check it, and it was wrong - the recogniser was simply pinned to `en`. The
+prompt now forbids the claim outright, and separately tells her what to do with any turn she
+did not understand: ask for it again, warmly, in the caller's language if she can. Phone audio
+drops words in every language, so a misheard turn was a dead end in English too.
+
 **Devanagari, never romanised.** MiniMax's Hindi voices are trained on the script; "ek
 second" in Latin letters is read out as English words.
 
@@ -462,7 +469,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-211 tests, ~9s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+213 tests, ~9s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 

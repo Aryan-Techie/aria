@@ -21,3 +21,30 @@ def test_build_system_prompt_includes_speech_style_by_default():
     # The persona and the date stamp must survive alongside it.
     assert "You are Aria" in prompt
     assert "Today is" in prompt
+
+
+def test_a_misheard_turn_is_never_a_dead_end():
+    """Found on a live call. Handed a garbled transcript the model improvised
+    a refusal - "sorry, I can't help with you" - because nothing in the prompt
+    told it what to do with a turn it did not understand. Phone audio drops
+    words in every language, so this is not a Hindi problem."""
+    from app.tools.prompts import ARIA_SYSTEM_PROMPT
+
+    prompt = ARIA_SYSTEM_PROMPT
+
+    assert "WHEN YOU DID NOT UNDERSTAND" in prompt
+    assert "say it again" in prompt
+    assert "blame the caller" in prompt
+
+
+def test_she_may_never_tell_a_caller_their_language_is_unsupported():
+    """Also found live: spoken to in Hindi, she answered that she only
+    understands English. That is not her decision, she cannot check it, and on
+    that call it was factually wrong - the recogniser was simply pinned to the
+    wrong language."""
+    from app.tools.prompts import ARIA_SYSTEM_PROMPT
+
+    prompt = ARIA_SYSTEM_PROMPT
+
+    assert "NEVER TELL A CALLER YOU DO NOT SUPPORT THEIR LANGUAGE" in prompt
+    assert "rudest thing" in prompt
