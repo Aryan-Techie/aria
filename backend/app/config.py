@@ -33,10 +33,19 @@ class Settings(BaseSettings):
     # stays wired as the automatic fallback if Groq errors or is unset.
     llm_provider: str = "groq"
     groq_api_key: str = ""
-    groq_model: str = "qwen/qwen3.8-27b"
+    # Chosen by measurement, not reputation - scripts/bench_llm.py runs
+    # candidates against the real system prompt and the real tool schemas,
+    # because a benchmark on a toy prompt says nothing when the fixed cost
+    # of a hop is ~4,600 tokens. gpt-oss-20b: 0.74s to first token with the
+    # right tool call. qwen3.8-27b, the previous default: 1.03s AND it
+    # missed the tool call on the same turn.
+    groq_model: str = "openai/gpt-oss-20b"
     # "none" keeps the reasoning model from spending latency thinking out loud
     # before it answers - measured no loss of tool-selection accuracy.
-    groq_reasoning_effort: str = "none"
+    # "none" is a qwen spelling; the gpt-oss models reject it outright with
+    # a 400 and accept only low/medium/high. "low" is the nearest thing to
+    # off and measured no loss of tool-selection accuracy.
+    groq_reasoning_effort: str = "low"
     # Groq's free tier is ~6k tokens/minute. Our fixed per-hop cost (system
     # prompt + tool schemas) is ~2.2k, so a couple of hops exhausts the
     # window and further calls sit queued for the ~60s reset - measured at
@@ -125,6 +134,12 @@ class Settings(BaseSettings):
     # app/language/profiles.py. Any of them left on an English default is on
     # its own enough to break a Hindi call.
     agent_language: str = "en"
+    # Change the TTS voice mid-call: follow the caller when they switch
+    # language, and give the second-layer agents a voice of their own.
+    # Off by default - it spends a REST round-trip out of an ~800ms turn
+    # budget, and it is unverified against a live Agora agent. See
+    # app/voice/director.py and scripts/check_voice_switch.py.
+    voice_switching_enabled: bool = False
 
     asr_vendor: str = "deepgram"
     # Overridden by the language profile unless explicitly set. Kept as its

@@ -44,6 +44,9 @@ class SessionState(BaseModel):
     # work the agent did is not allowed to depend on whether credentials
     # for a UI side-channel happen to be configured.
     tool_calls: list[str] = Field(default_factory=list)
+    # The voice Agora currently has for this call, so a switch that is
+    # already in force is not bought a second time.
+    current_voice_id: str | None = None
     left_brain: LeftBrain = Field(default_factory=LeftBrain)
     right_brain: RightBrain = Field(default_factory=RightBrain)
     # Every round of bargaining on this call, as authorised - not as the

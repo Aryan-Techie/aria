@@ -382,6 +382,43 @@ is a reasonable expectation and not a fact. Place one call before demoing it.
 
 ---
 
+## The voice is not fixed for the call
+
+Two problems that turn out to be one: the voice is chosen at `/join` and never changes.
+
+**Accent should follow the language.** The `hinglish` profile pins a Hindi voice for the
+session, which is right until the caller switches to English - at which point they hear an
+English sentence in a Hindi accent. On a call where they switched deliberately, that reads as
+the agent not having noticed.
+
+**Each layer should sound like a different person.** When Aria goes to the deal desk or the
+solutions engineer a second agent really does answer, with its own prompt and its own model
+call - and the customer hears all of it in her voice, so the layering is inaudible to the
+person it was built for. Now "let me check with our deal desk" is followed by a different
+voice, because a different agent genuinely did answer.
+
+Both run on Agora's runtime `update`, which it documents for exactly this case - a custom LLM
+deciding the voice should change. Language is detected by **script**, not a classifier: a
+Devanagari character count is exact, costs nothing, and answers the only question being asked.
+The threshold is 15% rather than a majority, because Hinglish is mostly English nouns in a
+Hindi sentence - "कितने MacBook Pro चाहिए" is a Hindi sentence and a majority vote would hand
+it to the wrong voice. It reads the language off the **customer's** last turn, not the reply,
+because the reply is still generating and the switch has to be in flight before it is spoken.
+
+**Deliberately conservative**, because a switch costs a REST round-trip on the turn path at
+the most dramatic moment of the call: off unless `VOICE_SWITCHING_ENABLED=true`, dispatched in
+the background so it never blocks a reply, fired only on a real change (the voice in force is
+tracked per session), and swallowed on failure - a voice that did not change is a cosmetic
+disappointment where an exception mid-turn is a broken call.
+
+**Unverified against a live agent.** `POST /agents/{id}/update` is documented, but this
+account has already had one vendor/model combination refused for its SKU, so documented and
+available are not the same claim. `scripts/check_voice_switch.py` switches the voice on a call
+that is actually in progress and prints what Agora returned. Run it before trusting this in a
+demo.
+
+---
+
 ## Design notes
 
 **Memory without a memory service.** Tools write qualification state — company, device count,
@@ -407,6 +444,16 @@ read them aloud as text. The frontend strips the markup from the transcript for 
 "the second". `calendar_check_availability` now returns a preformatted label per slot
 ("Tuesday 1 September at 10:00 AM") and the prompt says to read it verbatim. Removing the
 arithmetic beats asking the model to be careful with it.
+
+**The model is chosen by measurement.** `scripts/bench_llm.py` runs candidates against the
+real system prompt and the real tool schemas - a benchmark on a toy prompt says nothing when
+the fixed cost of a hop is ~4,600 tokens - and reports time-to-first-token, which is what the
+customer feels, since Agora starts speaking on the first chunk. It also gates on whether the
+model made the tool call the turn needed, because a fast agent that picks the wrong tool is
+not faster, it is broken. Measured on this stack: `openai/gpt-oss-20b` 0.74s to first token
+with the right tool call; `openai/gpt-oss-120b` 0.99s; `qwen/qwen3.8-27b`, the previous
+default, 1.03s **and it missed the tool call on the same turn**. One caveat worth keeping: the
+gpt-oss models reject `reasoning_effort: none` with a 400 and take only low/medium/high.
 
 **The token budget is the latency budget.** Groq's free tier is ~6,000 tokens/minute and the
 fixed cost of a hop - system prompt plus tool schemas - is ~4,600 of them. So one hop is
@@ -452,6 +499,7 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 | `EMAIL_BCC` | Optional silent copy to the rep on the meeting |
 | `REP_SUMMARY_EMAIL` | Where the end-of-call wrap-up is emailed. Blank still writes it to the CRM |
 | `AGENT_LANGUAGE` | `en`, `hi`, or `hinglish`. Sets ASR, voice, boost, greeting and prompt together |
+| `VOICE_SWITCHING_ENABLED` | Follow the caller's language, and give each layer its own voice. Off by default |
 | `MINIMAX_EMOTION` | `fluent` reads conversational; `happy` sounds like a chirpy IVR |
 | `FILLER_WORDS_ENABLED` | Agora's own stall phrases. Off — see Design notes |
 | `STATE_DIR` | JSON snapshots for the in-memory stores; blank = pure memory |
@@ -481,7 +529,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-213 tests, ~9s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+226 tests, ~10s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 
@@ -501,6 +549,8 @@ real credentials or touches disk, and the EspoCRM adapter is tested against
 | `backend/app/tools/definitions.py` | The eight tool schemas |
 | `backend/app/agora/join_payload.py` | ASR/TTS/LLM/VAD config sent to Agora on `/join` |
 | `backend/app/language/profiles.py` | English / Hindi / Hinglish, and the five settings that must agree |
+| `backend/app/voice/director.py` | Who speaks and in what accent, and when that is worth a round-trip |
+| `scripts/bench_llm.py` | Model latency measured on the real prompt and real tool schemas |
 | `backend/app/crm/espo_client.py` | EspoCRM REST client — auth, filters, datetime formats |
 | `backend/app/crm/espo_store.py` | Leads |
 | `backend/app/calendar/espo_store.py` | Meetings, with availability derived from real bookings |

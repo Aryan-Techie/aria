@@ -24,6 +24,7 @@ from app.orchestrator.llm_client import (
 from app.rtm.publisher import RtmPublisher, default_rtm_publisher
 from app.sessions.models import SessionState
 from app.tools import definitions, executor
+from app.voice import director
 from app.tools.prompts import ARIA_SYSTEM_PROMPT, build_system_prompt
 
 logger = logging.getLogger("aria")
@@ -355,6 +356,9 @@ def run_turn_stream(
         (t.content for t in reversed(session.transcript) if t.role == "user"), ""
     )
     recalled_memories = memory_recall(session.session_id, latest_user_message)
+    director.follow(
+        session, spoken_language=director.script_language(latest_user_message)
+    )
 
     escalate_called = False
     spoken_parts: list[str] = []
@@ -421,6 +425,10 @@ def run_turn_stream(
                 yield line
 
         escalate_called |= _execute_tool_calls(turn, session, publisher, messages)
+
+        role = director.agent_for_tools([c.name for c in turn.tool_calls])
+        if role != "aria":
+            director.follow(session, role=role)
     else:
         if not spoken_parts:
             fallback = "Let me pull that up for you - one moment."

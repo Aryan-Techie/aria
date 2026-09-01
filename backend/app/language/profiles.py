@@ -57,6 +57,17 @@ class LanguageProfile(BaseModel):
     # MiniMax detect per utterance, which is what a mixed call needs).
     voice_id: str
     language_boost: str
+    # Aria's voice per language of the reply, for a profile that genuinely
+    # has two. Empty on a single-language profile: an English deployment that
+    # quotes a Hindi company name has no second voice to switch to and no
+    # reason to want one.
+    alternate_voices: dict[str, str] = Field(default_factory=dict)
+    # A voice per layer, so a handoff to the second layer is audible. When
+    # Aria goes to the deal desk a different agent really does answer - its
+    # own prompt, its own model call, its own objective - and until now the
+    # customer heard all of it in her voice, which made the layering invisible
+    # to the person it was built for.
+    agent_voices: dict[str, str] = Field(default_factory=dict)
     # MiniMax's digit/abbreviation expansion is an English/Chinese feature.
     # Leaving it on for a Hindi voice spends latency on a pass that does not
     # apply.
@@ -85,6 +96,12 @@ ENGLISH = LanguageProfile(
     voice_id="English_captivating_female1",
     language_boost="English",
     english_normalization=True,
+    agent_voices={
+        "aria": "English_captivating_female1",
+        # Clipped and male, so the change of person registers in one word.
+        "deal_desk": "English_Trustworth_Man",
+        "solutions": "English_Gentle-voiced_man",
+    },
     greeting=(
         "Thanks for calling Apple Business Sales, "
         "Apple Park, One Apple Park Way in Cupertino. <#0.25#> "
@@ -114,6 +131,13 @@ HINDI = LanguageProfile(
     language_boost="Hindi",
     english_normalization=False,
     speech_speed=1.02,
+    agent_voices={
+        "aria": "hindi_female_1_v2",
+        # MiniMax labels this one "Trustworthy Advisor", which is the deal
+        # desk's job description.
+        "deal_desk": "hindi_male_1_v2",
+        "solutions": "hindi_female_2_v1",
+    },
     greeting=(
         "Apple Business Sales में आपका स्वागत है. <#0.25#> "
         "मैं Aria बोल रही हूँ. <#0.2#> मैं आपकी किस तरह मदद कर सकती हूँ?"
@@ -148,6 +172,19 @@ HINGLISH = LanguageProfile(
     language_boost="auto",
     english_normalization=False,
     speech_speed=1.02,
+    # The only profile where this matters: the caller switches language
+    # mid-call, and a Hindi voice reading an English sentence is that sentence
+    # in a Hindi accent. Noticeable, and on a call where they just switched
+    # deliberately it reads as not having noticed.
+    alternate_voices={
+        "hi": "hindi_female_1_v2",
+        "en": "English_captivating_female1",
+    },
+    agent_voices={
+        "aria": "hindi_female_1_v2",
+        "deal_desk": "hindi_male_1_v2",
+        "solutions": "hindi_female_2_v1",
+    },
     greeting=(
         "Apple Business Sales में आपका स्वागत है. <#0.25#> "
         "This is Aria speaking. <#0.2#> मैं आपकी किस तरह मदद कर सकती हूँ?"

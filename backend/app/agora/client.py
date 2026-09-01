@@ -36,6 +36,31 @@ class AgoraRestClient:
         response = httpx.post(f"{self._base_url}/agents/{agent_id}/interrupt", headers=self._headers, timeout=10.0)
         response.raise_for_status()
 
+    def update(self, agent_id: str, properties: dict) -> None:
+        """Change a running agent's configuration without restarting the call.
+
+        Agora documents runtime TTS parameter updates specifically for the
+        custom-LLM setup this backend is - the case where our own model
+        decides the voice should change - so this is the supported path rather
+        than a trick. It takes a partial `properties` object in the same shape
+        /join takes, and only the keys present are touched.
+
+        Used for two things here (app/voice/director.py): following the
+        caller's language so an English sentence is not read in a Hindi voice,
+        and giving the second-layer agents a voice of their own.
+
+        Best-effort by construction. This sits beside a live conversation, and
+        a voice that failed to change is a cosmetic disappointment where a
+        raised exception mid-turn is a broken call.
+        """
+        response = httpx.post(
+            f"{self._base_url}/agents/{agent_id}/update",
+            headers=self._headers,
+            json={"properties": properties},
+            timeout=5.0,
+        )
+        response.raise_for_status()
+
     def query(self, agent_id: str) -> dict:
         response = httpx.get(f"{self._base_url}/agents/{agent_id}", headers=self._headers, timeout=10.0)
         response.raise_for_status()
