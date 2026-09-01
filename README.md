@@ -250,6 +250,51 @@ Readable at `GET /api/summaries` and `GET /api/summaries/{session_id}`.
 
 ---
 
+## How many conversations at once
+
+The question a buyer actually asks is not "does it work" - it is "how many of these run at
+the same time, and how many people do I still need". `scripts/capacity_test.py` answers it by
+running the load rather than estimating it, and `GET /api/metrics/capacity` reports what
+really happened.
+
+```
+python scripts/capacity_test.py --sessions 256 --turns 6
+256 concurrent calls, 1536 turns in 1.91s (804/s), p95 0.30s, 0 failed
+
+python scripts/capacity_test.py --sessions 512 --turns 6
+512 concurrent calls, 3072 turns in 6.34s (485/s), p95 1.04s, 0 failed
+```
+
+Each simulated call runs the real six-beat script - price question, objection, requirement
+change, two discount pushes, booking - through the real `run_turn_stream`, so the CRM writes,
+the deal desk consult, the RAG search and the calendar lookup all genuinely execute. Only the
+model is stubbed.
+
+**Which is exactly what the number means, and nothing more.** `--mode pipeline` says our code
+holds 512 conversations without dropping a turn. It does not say a Groq free tier will serve
+512; a turn spends most of its life inside the provider, so end to end the ceiling is their
+rate limit, not ours. `--mode live` measures that against a running backend. Quote both or
+neither.
+
+**It found a real bug on its first serious run.** At 256 concurrent calls a handful of turns
+died with `dictionary changed size during iteration`: the in-memory stores walk their own dict
+to build a persistence snapshot, and another live call's `save()` was inserting into it
+mid-walk. Every call is its own thread - Agora calls the webhook once per turn per call - so
+this was always reachable and simply needed enough calls at once to be hit. The stores are
+lock-guarded now, and `tests/test_capacity.py` hammers each one from two threads as a
+regression guard.
+
+`/api/metrics/capacity` reports peak concurrency **computed** as the maximum overlap across
+every session's start and end (not "calls today", which is how this number usually gets
+inflated), containment - with an escalated call counting *against* the agent, since a call
+that needed a person is not a call it handled - talk time and post-call admin kept apart
+rather than summed into one flattering figure, and rep-days saved. Every assumption behind
+the derived figures is returned in the same payload, because a number whose assumptions are
+hidden is one a judge is right to distrust. See `app/metrics/savings.py` for the per-action
+baselines; repeated data entry counts once, and an escalation counts zero.
+
+---
+
 ## Design notes
 
 **Memory without a memory service.** Tools write qualification state — company, device count,
@@ -314,7 +359,7 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 ### Debug endpoints
 
 `GET /healthz` · `GET /api/leads` · `GET /api/calendar/slots` · `GET /api/inbox` ·
-`GET /api/session/{id}/events` · `POST /api/inbox/{id}/approve` · `GET /api/summaries`
+`GET /api/session/{id}/events` · `POST /api/inbox/{id}/approve` · `GET /api/summaries` · `GET /api/metrics/capacity`
 
 ---
 
@@ -336,7 +381,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-171 tests, ~10s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+183 tests, ~11s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 
@@ -363,6 +408,8 @@ real credentials or touches disk, and the EspoCRM adapter is tested against
 | `backend/app/handoff/builder.py` | The end-of-call wrap-up; facts off the record, two sentences from the model |
 | `backend/app/handoff/delivery.py` | CRM note, Slack, email - independent and best-effort |
 | `backend/app/metrics/savings.py` | How much human time a call actually took off someone's desk |
+| `backend/app/metrics/capacity.py` | Concurrency, containment and the assumptions behind both |
+| `scripts/capacity_test.py` | N concurrent calls through the real turn loop |
 | `crm/docker-compose.yml` | EspoCRM + MariaDB + websocket + daemon |
 | `scripts/provision_crm.py` | Headless CRM setup |
 | `frontend/lib/agoraClient.ts` | RTC + RTM join/teardown, transcript handling |

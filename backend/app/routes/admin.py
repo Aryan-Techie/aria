@@ -8,6 +8,7 @@ from app.calendar import service as calendar_service
 from app.crm import service as crm_service
 from app.escalation.inbox import inbox
 from app.handoff import service as handoff_service
+from app.metrics import capacity
 from app.rtm.publisher import default_rtm_publisher
 from app.sessions.store import session_store
 
@@ -27,6 +28,14 @@ def list_slots() -> list[dict]:
 @router.get("/api/inbox")
 def list_inbox() -> list[dict]:
     return [record.model_dump(mode="json") for record in inbox.all()]
+
+
+@router.get("/api/metrics/capacity")
+def capacity_metrics() -> dict:
+    """How many conversations this has actually handled, and what that stood
+    in for. Every assumption behind the derived figures is returned alongside
+    them — see app/metrics/capacity.py."""
+    return capacity.snapshot(session_store.all())
 
 
 @router.get("/api/summaries")

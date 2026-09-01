@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from app.crm.fixtures import SEED_LEADS
 from app.crm.models import Lead
@@ -13,7 +14,19 @@ class LeadStore:
     """In-memory CRM store, optionally snapshotted to JSON (app/persistence.py)
     so a backend restart does not lose leads captured on a live call."""
 
+# One lock per store, held across every read and every write.
+#
+# Found by scripts/capacity_test.py, not by inspection: at 256 concurrent
+# calls a handful of turns died with "dictionary changed size during
+# iteration". _persist() walks the dict to build its snapshot while another
+# call's save() is inserting into it. Every session is its own thread - Agora
+# calls the webhook once per turn per call - so this was always reachable; it
+# just needed enough calls at once to be hit. The critical sections are a dict
+# write and a JSON dump, so an RLock costs nothing measurable and turns a
+# once-in-a-thousand-turns crash into an impossibility.
+
     def __init__(self) -> None:
+        self._lock = threading.RLock()
         self._leads: dict[str, Lead] = {lead.id: lead.model_copy() for lead in SEED_LEADS}
         self._session_to_lead: dict[str, str] = {}
         self._restore()
@@ -31,16 +44,18 @@ class LeadStore:
             pass
 
     def _persist(self) -> None:
-        save_state(
-            _STATE_NAME,
-            {
-                "leads": [lead.model_dump(mode="json") for lead in self._leads.values()],
-                "session_to_lead": self._session_to_lead,
-            },
-        )
+        with self._lock:
+            save_state(
+                _STATE_NAME,
+                {
+                    "leads": [lead.model_dump(mode="json") for lead in self._leads.values()],
+                    "session_to_lead": dict(self._session_to_lead),
+                },
+            )
 
     def all(self) -> list[Lead]:
-        return list(self._leads.values())
+        with self._lock:
+            return list(self._leads.values())
 
     def get(self, lead_id: str) -> Lead | None:
         return self._leads.get(lead_id)
@@ -50,16 +65,18 @@ class LeadStore:
         return self._leads.get(lead_id) if lead_id else None
 
     def save(self, lead: Lead) -> Lead:
-        self._leads[lead.id] = lead
-        if lead.session_id:
-            self._session_to_lead[lead.session_id] = lead.id
-        self._persist()
+        with self._lock:
+            self._leads[lead.id] = lead
+            if lead.session_id:
+                self._session_to_lead[lead.session_id] = lead.id
+            self._persist()
         return lead
 
     def reset(self) -> None:
-        self._leads = {lead.id: lead.model_copy() for lead in SEED_LEADS}
-        self._session_to_lead = {}
-        self._persist()
+        with self._lock:
+            self._leads = {lead.id: lead.model_copy() for lead in SEED_LEADS}
+            self._session_to_lead = {}
+            self._persist()
 
 
 def _build_store():
