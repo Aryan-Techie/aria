@@ -61,6 +61,10 @@ class LanguageProfile(BaseModel):
     # Leaving it on for a Hindi voice spends latency on a pass that does not
     # apply.
     english_normalization: bool
+    # MiniMax voice_setting.speed. 0.96 reads as considered rather than rushed
+    # in English; the Hindi voices already read slower, so the same value
+    # there lands as sluggish. A dial rather than a finding - retune by ear.
+    speech_speed: float = 0.96
 
     # Spoken by Agora, not the model - see the fields it feeds in
     # agora/join_payload.py.
@@ -109,6 +113,7 @@ HINDI = LanguageProfile(
     voice_id="hindi_female_1_v2",
     language_boost="Hindi",
     english_normalization=False,
+    speech_speed=1.02,
     greeting=(
         "Apple Business Sales में आपका स्वागत है. <#0.25#> "
         "मैं Aria बोल रही हूँ. <#0.2#> मैं आपकी किस तरह मदद कर सकती हूँ?"
@@ -142,6 +147,7 @@ HINGLISH = LanguageProfile(
     voice_id="hindi_female_1_v2",
     language_boost="auto",
     english_normalization=False,
+    speech_speed=1.02,
     greeting=(
         "Apple Business Sales में आपका स्वागत है. <#0.25#> "
         "This is Aria speaking. <#0.2#> मैं आपकी किस तरह मदद कर सकती हूँ?"

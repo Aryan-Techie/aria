@@ -348,10 +348,18 @@ def default_llm_client() -> ChatLLMClient:
     from app.config import get_settings
 
     settings = get_settings()
-    anthropic = AnthropicChatClient(api_key=settings.anthropic_api_key, model=settings.anthropic_model)
 
     if settings.llm_provider != "groq" or not settings.groq_api_key:
-        return anthropic
+        # Anthropic is the only provider, so it is the conversation - not a
+        # fallback - and gets the stronger model.
+        return AnthropicChatClient(
+            api_key=settings.anthropic_api_key, model=settings.anthropic_model
+        )
+
+    # Behind Groq, speed is what this is for. See anthropic_fallback_model.
+    anthropic = AnthropicChatClient(
+        api_key=settings.anthropic_api_key, model=settings.anthropic_fallback_model
+    )
 
     groq = GroqChatClient(
         api_key=settings.groq_api_key,

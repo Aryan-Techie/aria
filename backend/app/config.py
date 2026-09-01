@@ -47,6 +47,16 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5"
+    # The model that serves a turn when Groq cannot. Separate from
+    # anthropic_model because the two jobs are not the same one: this sits on
+    # the conversational path where the customer is waiting, and on a free
+    # Groq tier it is not the rare safety net it was designed as - a single
+    # hop is ~74% of the 6k-token minute, so the second hop of a turn is
+    # routinely throttled and lands here. Measured: Sonnet serves a hop in
+    # ~4-6s, which is the whole of the felt latency. Haiku is a weaker
+    # negotiator and a fast answer beats a slow one on a live call; set this
+    # to claude-sonnet-4-5 to trade back.
+    anthropic_fallback_model: str = "claude-haiku-4-5-20251001"
 
     # When set, the CRM/calendar/inbox stores snapshot to JSON here so a
     # backend restart does not wipe a booked meeting mid-demo. Blank = pure
@@ -144,7 +154,8 @@ class Settings(BaseSettings):
     #   emotion- happy | sad | angry | fearful | disgusted | surprised |
     #            calm | fluent | whisper. "fluent" is the conversational one;
     #            "happy" oversells and reads as a chirpy IVR on a sales call.
-    minimax_speed: float = 0.96
+    # None follows the language profile's speed.
+    minimax_speed: float | None = None
     minimax_vol: float = 1.0
     minimax_pitch: int = 0
     minimax_emotion: str = "fluent"

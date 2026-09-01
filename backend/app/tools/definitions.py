@@ -143,12 +143,9 @@ TOOLS: list[dict] = [
         "name": "ask_solutions_engineer",
         "description": (
             "Put a technical question to a deployment engineer - compatibility, "
-            "migration, MDM, security, integration, rollout logistics. Use this "
-            "whenever search_pricing_rag does not settle a technical question, "
-            "INSTEAD of escalating and instead of guessing. It reads everything "
-            "we have and tells you precisely what is supported and what is "
-            "genuinely still open, which is an answer a customer can act on. "
-            "Not for pricing or discounts - that is negotiate_deal."
+            "migration, MDM, security, integration, rollout. Use whenever "
+            "search_pricing_rag does not settle one, instead of escalating and "
+            "instead of guessing. Not for pricing - that is negotiate_deal."
         ),
         "input_schema": {
             "type": "object",
@@ -159,10 +156,7 @@ TOOLS: list[dict] = [
                 },
                 "their_setup": {
                     "type": "string",
-                    "description": (
-                        "Anything they have said about their current environment - "
-                        "software, existing fleet, IT tooling. Helps the engineer be specific."
-                    ),
+                    "description": "Their current environment - software, fleet, IT tooling.",
                 },
             },
             "required": ["question"],
@@ -171,15 +165,11 @@ TOOLS: list[dict] = [
     {
         "name": "negotiate_deal",
         "description": (
-            "Work out what you are actually allowed to offer when the customer "
-            "pushes on price - a discount request, a target number, a competing "
-            "quote, or 'what's your best price'. This consults the deal desk and "
-            "returns a priced, authorised offer. You must call this before "
-            "putting ANY discount, target price, or trade-in figure to the "
-            "customer: a number you worked out yourself is not an offer the "
-            "business has agreed to, and quoting one you cannot honour is worse "
-            "than saying no. Call it again each time they push again - the desk "
-            "tracks what has already been conceded."
+            "What you are allowed to offer when the customer pushes on price: a "
+            "discount request, a target number, a competing quote, or 'what's your "
+            "best price'. Consults the deal desk and returns a priced, authorised "
+            "offer. Required before putting ANY discount, target price or trade-in "
+            "figure to a customer. Call it again each time they push again."
         ),
         "input_schema": {
             "type": "object",
@@ -190,26 +180,23 @@ TOOLS: list[dict] = [
                 },
                 "requested_discount_pct": {
                     "type": "number",
-                    "description": "Only if they named a percentage, e.g. 15 for 'fifteen percent off'.",
+                    "description": "Only if they named a percentage, e.g. 15.",
                 },
                 "target_total_price": {
                     "type": "number",
-                    "description": "Only if they named a total they need to hit, e.g. 90000.",
+                    "description": "Only if they named a total to hit, e.g. 90000.",
                 },
                 "target_unit_price": {
                     "type": "number",
-                    "description": "Only if they named a per-device price they need, e.g. 850.",
+                    "description": "Only if they named a per-device price, e.g. 850.",
                 },
                 "competitor_quote": {
                     "type": "string",
-                    "description": "The competing quote they are holding over you, if any.",
+                    "description": "The competing quote, if any.",
                 },
                 "device_mix": {
                     "type": "array",
-                    "description": (
-                        "The fleet, when they have specified models. Omit it and "
-                        "the whole fleet is priced as MacBook Airs."
-                    ),
+"description": "Only when they named models. Omitted, all MacBook Airs.",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -221,11 +208,11 @@ TOOLS: list[dict] = [
                 },
                 "trade_in_devices": {
                     "type": "integer",
-                    "description": "How many devices they would trade in, if they have said.",
+                    "description": "Devices they would trade in, if stated.",
                 },
                 "financing": {
                     "type": "boolean",
-                    "description": "True if the blocker is cash flow rather than total cost.",
+                    "description": "True if the blocker is cash flow, not total cost.",
                 },
             },
             "required": ["customer_ask"],

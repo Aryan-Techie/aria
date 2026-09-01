@@ -34,7 +34,8 @@ def test_a_misheard_turn_is_never_a_dead_end():
 
     assert "WHEN YOU DID NOT UNDERSTAND" in prompt
     assert "say it again" in prompt
-    assert "blame the caller" in prompt
+    assert "never blame the caller" in prompt
+    assert "never end the conversation over one" in prompt
 
 
 def test_she_may_never_tell_a_caller_their_language_is_unsupported():
@@ -46,5 +47,5 @@ def test_she_may_never_tell_a_caller_their_language_is_unsupported():
 
     prompt = ARIA_SYSTEM_PROMPT
 
-    assert "NEVER TELL A CALLER YOU DO NOT SUPPORT THEIR LANGUAGE" in prompt
+    assert "never tell anyone you do not support their language" in prompt
     assert "rudest thing" in prompt

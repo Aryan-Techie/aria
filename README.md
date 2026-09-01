@@ -408,6 +408,17 @@ read them aloud as text. The frontend strips the markup from the transcript for 
 ("Tuesday 1 September at 10:00 AM") and the prompt says to read it verbatim. Removing the
 arithmetic beats asking the model to be careful with it.
 
+**The token budget is the latency budget.** Groq's free tier is ~6,000 tokens/minute and the
+fixed cost of a hop - system prompt plus tool schemas - is ~4,600 of them. So one hop is
+around three quarters of the whole minute, and the *second* hop of a turn is routinely
+throttled straight into the Anthropic fallback. Measured on a live call: 21 `RateLimitError`s
+in one session, each one turning a ~1s hop into a ~5s one. Two consequences that are easy to
+get wrong. Every paragraph added to the system prompt and every tool schema is paid on
+*every* hop, so detail belongs in the tool's own result - which is paid only when that tool
+fires - rather than in the prompt; adding the negotiation and specialist layers cost +41% per
+hop until they were moved. And the fallback is not a rare safety net here, so it runs a fast
+model (`ANTHROPIC_FALLBACK_MODEL`) rather than the strongest one.
+
 **Latency.** Groq serves a tool hop in ~0.7–1.7s against ~4–6s for a frontier model. Replies
 stream as SSE so Agora starts speaking on the first chunk rather than waiting for the whole
 tool loop. RTM publishing and memory write-back are fire-and-forget, off the response path.
@@ -430,6 +441,7 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 | `LLM_SHARED_SECRET` | Required — see Security |
 | `LLM_PROVIDER` | `groq` (default) or `anthropic` |
 | `GROQ_API_KEY` | Leave blank to run entirely on Anthropic |
+| `ANTHROPIC_FALLBACK_MODEL` | Serves a turn when Groq throttles. Fast by default - see Design notes |
 | `CRM_BACKEND` | `espocrm` or `memory` |
 | `ESPOCRM_API_KEY` | From `scripts/provision_crm.py` |
 | `ESPOCRM_ASSIGNED_USER_ID` | Meetings need a real assignee; an api-type user cannot be one |
