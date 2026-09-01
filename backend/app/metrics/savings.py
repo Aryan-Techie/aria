@@ -30,6 +30,9 @@ BASELINE_MINUTES: dict[str, float] = {
     "crm_qualify_lead": 1.0,
     # Looking a price, spec or comparison up in the deck.
     "search_pricing_rag": 2.0,
+    # Emailing a solutions engineer and waiting for the reply - the part
+    # that used to happen after the call, if it happened at all.
+    "ask_solutions_engineer": 12.0,
     # Building a priced quote and chasing whoever has to approve the discount.
     "negotiate_deal": 20.0,
     # The email thread that finds a time everyone can make.

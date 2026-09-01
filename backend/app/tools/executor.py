@@ -12,11 +12,12 @@ from app.calendar.labels import slot_label as _slot_label
 from app.calendar.models import SlotTakenError
 from app.crm import service as crm_service
 from app.deal import desk, engine, policy
-from app.escalation import service as escalation_service
+from app.escalation import service as escalation_service, triggers
 from app.escalation.models import TriggerSource
 from app.memory.schema import Objection
 from app.notify import service as notify_service
 from app.rag import retriever
+from app.specialists import solutions
 
 
 def _dt(value: str | None) -> datetime | None:
@@ -50,7 +51,55 @@ def dispatch(tool_name: str, tool_input: dict, session, *, trigger_source: Trigg
 def _search_pricing_rag(tool_input: dict, session, **_) -> dict:
     results = retriever.search(tool_input["query"], top_k=tool_input.get("top_k", 4))
     session.last_rag_score = results[0].score if results else 0.0
-    return {"chunks": [r.model_dump() for r in results]}
+    payload = {"chunks": [r.model_dump() for r in results]}
+
+    # A weak retrieval used to leave two options - guess, or fetch a human -
+    # and the second is the one that looks most reasonable in the moment.
+    # There is a third now, and the model is pointed at it here rather than
+    # left to remember the prompt on the one turn where it matters.
+    if session.last_rag_score < triggers.LOW_CONFIDENCE_THRESHOLD:
+        payload["guidance"] = (
+            "This search did not turn up a confident answer. Do NOT guess and do NOT "
+            "escalate yet - if the question is technical, put it to "
+            "ask_solutions_engineer, which reads everything we have and will tell you "
+            "exactly what is supported and what is genuinely still open."
+        )
+    return payload
+
+
+def _ask_solutions_engineer(tool_input: dict, session, **_) -> dict:
+    """Layer 2, the other seat - see app/specialists/solutions.py.
+
+    Retrieves more widely than the sales lookup does, because a specialist
+    reading everything and reporting the boundary is the whole point; four
+    chunks is enough to answer a pricing question and not enough to be sure
+    what a corpus does not say.
+    """
+    question = tool_input["question"]
+    results = retriever.search(question, top_k=8)
+    session.last_rag_score = results[0].score if results else 0.0
+
+    answer = solutions.consult(
+        question=question,
+        chunks=[r.model_dump() for r in results],
+        context=tool_input.get("their_setup") or session.left_brain.model_dump_json(),
+    )
+
+    return {
+        "answer": answer.answer,
+        "confidence": answer.confidence,
+        "still_open": answer.open_questions,
+        "guidance": (
+            "Say the answer in your own words, and say the open questions out loud too - "
+            "a customer told precisely what is still to be checked trusts you more than one "
+            "told everything will be fine. Offer to have an engineer confirm them, and keep "
+            "the call moving."
+            if not answer.escalate_recommended
+            else "Our material does not support an answer here. Tell them you would rather "
+            "have an engineer confirm it than guess, then call escalate_to_human with this "
+            "specific question so the person arrives knowing exactly what is being asked."
+        ),
+    }
 
 
 def _crm_upsert_lead(tool_input: dict, session, **_) -> dict:
@@ -342,6 +391,7 @@ def _update_sentiment(tool_input: dict, session, **_) -> dict:
 
 _HANDLERS = {
     "search_pricing_rag": _search_pricing_rag,
+    "ask_solutions_engineer": _ask_solutions_engineer,
     "crm_upsert_lead": _crm_upsert_lead,
     "crm_qualify_lead": _crm_qualify_lead,
     "calendar_check_availability": _calendar_check_availability,

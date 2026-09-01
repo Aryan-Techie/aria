@@ -40,6 +40,7 @@ _LOOKUP_TOOLS = {
     "calendar_check_availability",
     "calendar_book_meeting",
     "negotiate_deal",
+    "ask_solutions_engineer",
 }
 
 # Per-tool, so the line matches the wait. `<#x#>` pauses and (breath) are
@@ -62,10 +63,16 @@ _LINES: dict[str, tuple[str, ...]] = {
         "Great, <#0.2#> booking that in now.",
         "Okay, <#0.2#> putting that in the calendar.",
     ),
-    # The only line here where the wait is doing something the customer would
-    # recognise: a second agent, the deal desk, is genuinely deciding what we
-    # can give away. Saying so is not a stall - it is what a rep says when
-    # they go and check, and the pause is the check.
+    # The two lines below cover a wait that is doing something the customer
+    # would recognise: a second agent - the deal desk, or the solutions
+    # engineer - is genuinely deciding or checking. Saying so is not a stall.
+    # It is what a rep says when they go and ask someone, and the pause is
+    # them asking.
+    "ask_solutions_engineer": (
+        "Let me check that properly with one of our deployment engineers. <#0.3#> One second.",
+        "(breath) Good question <#0.2#> I want to get that exactly right rather than guess.",
+        "Let me pull the technical detail on that <#0.25#> bear with me.",
+    ),
     "negotiate_deal": (
         "Let me see what I can do on that. <#0.3#> One second.",
         "(breath) Okay <#0.2#> let me check what I can get approved for you.",

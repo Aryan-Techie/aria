@@ -90,7 +90,7 @@ browser (Next.js :3000) ──RTC audio──► Agora Conversational AI Engine
                                                 │
                                     FastAPI (:8000) ── this repo
                                       ├─ Groq primary / Anthropic fallback
-                                      ├─ tool loop (9 tools, max 6 hops)
+                                      ├─ tool loop (10 tools, max 6 hops)
                                       ├─ bridge line spoken when a lookup fires
                                       ├─ TF-IDF RAG over the product docs
                                       ├─ CRM + calendar ──► EspoCRM (:8080, Docker)
@@ -111,11 +111,11 @@ were OpenAI (`style: "openai"`) and streaming the SSE response into TTS chunk by
 **This repo:** the persona, the tool loop, RAG, CRM and calendar, qualification state,
 escalation, and every word she actually says. Agora never sees any of it.
 
-### The nine tools
+### The ten tools
 
-`search_pricing_rag` · `crm_upsert_lead` · `crm_qualify_lead` · `calendar_check_availability`
-· `calendar_book_meeting` · `negotiate_deal` · `escalate_to_human` · `log_objection` ·
-`update_sentiment`
+`search_pricing_rag` · `ask_solutions_engineer` · `crm_upsert_lead` · `crm_qualify_lead` ·
+`calendar_check_availability` · `calendar_book_meeting` · `negotiate_deal` ·
+`escalate_to_human` · `log_objection` · `update_sentiment`
 
 ---
 
@@ -157,11 +157,24 @@ model is not the last thing standing between a customer and the margin.
 not decide. Ask for a discount, name a target price, or wave a competitor's quote and she
 calls `negotiate_deal` rather than answering.
 
-**Layer 2 - the deal desk** (`app/deal/desk.py`). A genuinely separate agent: its own system
-prompt, its own model call, its own view of the call, and no ability to speak to the customer
-at all. It reasons about margin, which is a different job from holding a conversation, and
-asking one prompt to do both is how you get an agent that is either a pushover on price or a
-robot to talk to. It can sign up to 10%, and only ever against a commitment.
+**Layer 2 - two specialists, not one helper.** Each is a genuinely separate agent: its own
+system prompt, its own model call, its own view of the call, and no ability to speak to the
+customer at all.
+
+*The deal desk* (`app/deal/desk.py`) reasons about margin, which is a different job from
+holding a conversation - asking one prompt to do both is how you get an agent that is either a
+pushover on price or a robot to talk to. It can sign up to 10%, and only ever against a
+commitment.
+
+*The solutions engineer* (`app/specialists/solutions.py`) takes the technical questions - 
+compatibility, migration, MDM, rollout - that four sales documents cannot settle. Before it
+existed those left two honest options, guess or fetch a person, and fetching a person ends the
+call. It answers only from what the retriever can find and is required to state precisely what
+it does **not** know, as a specific open question rather than a vague caveat. "That should be
+fine" about software compatibility is a promise found out months later during a deployment.
+When a weak search comes back, the tool result itself points the model here rather than at a
+human - and when the engineer says the material genuinely does not cover it, the resulting
+handoff is a better one, because the person arrives knowing exactly which question is open.
 
 **Layer 3 - a human.** Past the desk's ceiling, a person is asked - *without ending the call*.
 A question about margin is not a handoff, so the customer stays with Aria while a manager
@@ -381,7 +394,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-183 tests, ~11s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+191 tests, ~11s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 
@@ -395,6 +408,7 @@ real credentials or touches disk, and the EspoCRM adapter is tested against
 | `backend/app/deal/policy.py` | The commercial envelope - tiers, authority caps, the walk-away floor |
 | `backend/app/deal/engine.py` | Pricing, and `authorise` - the clamp the desk cannot argue with |
 | `backend/app/deal/desk.py` | Layer 2: the deal desk agent, its own prompt and its own model call |
+| `backend/app/specialists/solutions.py` | Layer 2: the solutions engineer, and what it refuses to claim |
 | `backend/app/orchestrator/bridge_lines.py` | "Let me pull that up", chosen by which tool fired |
 | `backend/app/tools/prompts.py` | Persona and speech markup — behaviour lives here, not in code |
 | `backend/app/tools/definitions.py` | The eight tool schemas |

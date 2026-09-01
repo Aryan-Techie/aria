@@ -140,6 +140,35 @@ TOOLS: list[dict] = [
         },
     },
     {
+        "name": "ask_solutions_engineer",
+        "description": (
+            "Put a technical question to a deployment engineer - compatibility, "
+            "migration, MDM, security, integration, rollout logistics. Use this "
+            "whenever search_pricing_rag does not settle a technical question, "
+            "INSTEAD of escalating and instead of guessing. It reads everything "
+            "we have and tells you precisely what is supported and what is "
+            "genuinely still open, which is an answer a customer can act on. "
+            "Not for pricing or discounts - that is negotiate_deal."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The technical question, in the customer's own terms.",
+                },
+                "their_setup": {
+                    "type": "string",
+                    "description": (
+                        "Anything they have said about their current environment - "
+                        "software, existing fleet, IT tooling. Helps the engineer be specific."
+                    ),
+                },
+            },
+            "required": ["question"],
+        },
+    },
+    {
         "name": "negotiate_deal",
         "description": (
             "Work out what you are actually allowed to offer when the customer "
