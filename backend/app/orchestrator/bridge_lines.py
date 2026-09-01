@@ -24,6 +24,14 @@ It used to, and that is the "Aria said everything twice" bug: a model that
 writes a bridge line AND calls a tool in the same hop then answers again once
 the tool returns. These lines are emitted by us, in code, between hops, so
 they cannot collide with the model's own output.
+
+Why they are translated
+-----------------------
+For the same reason. These are the one part of what the customer hears that
+the model does not write, so they stay in whatever language this file is
+written in unless something translates them. A Hindi call that suddenly says
+"let me pull those numbers up for you" in the middle of a turn is worse than
+an English call - it tells the caller the Hindi was a veneer.
 """
 from __future__ import annotations
 
@@ -45,7 +53,9 @@ _LOOKUP_TOOLS = {
 
 # Per-tool, so the line matches the wait. `<#x#>` pauses and (breath) are
 # MiniMax speech-2.8 markup - see SPEECH_STYLE_PROMPT in tools/prompts.py.
-_LINES: dict[str, tuple[str, ...]] = {
+# They are model features rather than language features, so they work the same
+# in every language below.
+_ENGLISH: dict[str, tuple[str, ...]] = {
     "search_pricing_rag": (
         "Okay <#0.2#> let me pull those numbers up for you.",
         "Sure, <#0.2#> one second, I'm looking at the pricing now.",
@@ -63,11 +73,10 @@ _LINES: dict[str, tuple[str, ...]] = {
         "Great, <#0.2#> booking that in now.",
         "Okay, <#0.2#> putting that in the calendar.",
     ),
-    # The two lines below cover a wait that is doing something the customer
-    # would recognise: a second agent - the deal desk, or the solutions
-    # engineer - is genuinely deciding or checking. Saying so is not a stall.
-    # It is what a rep says when they go and ask someone, and the pause is
-    # them asking.
+    # The two below cover a wait that is doing something the customer would
+    # recognise: a second agent - the deal desk, or the solutions engineer -
+    # is genuinely deciding or checking. Saying so is not a stall. It is what
+    # a rep says when they go and ask someone, and the pause is them asking.
     "ask_solutions_engineer": (
         "Let me check that properly with one of our deployment engineers. <#0.3#> One second.",
         "(breath) Good question <#0.2#> I want to get that exactly right rather than guess.",
@@ -81,6 +90,70 @@ _LINES: dict[str, tuple[str, ...]] = {
     ),
 }
 
+# Devanagari, not romanised: MiniMax's Hindi voices are trained on the script,
+# and "ek second" written in Latin letters is read out as English words.
+# Product and business nouns stay in English because that is how they are
+# actually said in an Indian office - "deal desk", not a translation of it.
+_HINDI: dict[str, tuple[str, ...]] = {
+    "search_pricing_rag": (
+        "ठीक है <#0.2#> मैं आपके लिए अभी pricing निकालती हूँ.",
+        "जी, <#0.2#> एक सेकंड, मैं अभी देख रही हूँ.",
+        "मैं आपको exact figure बताती हूँ. <#0.25#> बस एक पल.",
+        "(breath) अच्छा सवाल है <#0.2#> मुझे एक सेकंड दीजिए.",
+    ),
+    "calendar_check_availability": (
+        "मैं calendar देखती हूँ. <#0.25#> एक सेकंड.",
+        "ठीक है, <#0.2#> देखती हूँ कौन सा time खाली है.",
+        "अभी diary check कर रही हूँ <#0.2#> एक पल.",
+    ),
+    "calendar_book_meeting": (
+        "बढ़िया <#0.2#> मैं इसे अभी book कर देती हूँ.",
+        "ठीक है, <#0.2#> calendar में डाल रही हूँ.",
+    ),
+    "ask_solutions_engineer": (
+        "मैं ये हमारे deployment engineer से confirm कर लेती हूँ. <#0.3#> एक सेकंड.",
+        "(breath) अच्छा सवाल <#0.2#> मैं अंदाज़े से नहीं बताना चाहती, सही जानकारी लेती हूँ.",
+    ),
+    "negotiate_deal": (
+        "देखती हूँ मैं इसमें क्या कर सकती हूँ. <#0.3#> एक सेकंड.",
+        "(breath) ठीक है <#0.2#> मैं देखती हूँ कितना approve करा सकती हूँ.",
+        "एक पल दीजिए <#0.25#> मैं आपको सही number बताना चाहती हूँ.",
+    ),
+}
+
+# The mix an Indian B2B call actually runs on. Deliberately not a third set of
+# translations - it is the Hindi set with more English left standing, because
+# that is what the code-switching profile's caller is already doing.
+_HINGLISH: dict[str, tuple[str, ...]] = {
+    "search_pricing_rag": (
+        "Sure <#0.2#> एक सेकंड, मैं pricing निकालती हूँ.",
+        "ठीक है <#0.2#> let me pull that up for you.",
+        "मैं आपको exact figure बताती हूँ <#0.25#> one moment.",
+    ),
+    "calendar_check_availability": (
+        "Let me check the calendar <#0.25#> एक सेकंड.",
+        "ठीक है, <#0.2#> देखती हूँ क्या available है.",
+    ),
+    "calendar_book_meeting": (
+        "Perfect <#0.2#> मैं अभी book कर देती हूँ.",
+        "ठीक है, <#0.2#> putting that in the calendar.",
+    ),
+    "ask_solutions_engineer": (
+        "मैं ये deployment engineer से confirm कर लेती हूँ <#0.3#> one second.",
+        "(breath) Good question <#0.2#> मैं अंदाज़े से नहीं बताऊँगी.",
+    ),
+    "negotiate_deal": (
+        "Let me see what I can do <#0.3#> एक सेकंड.",
+        "(breath) ठीक है <#0.2#> मैं देखती हूँ कितना approve हो सकता है.",
+    ),
+}
+
+_BY_LANGUAGE: dict[str, dict[str, tuple[str, ...]]] = {
+    "en": _ENGLISH,
+    "hi": _HINDI,
+    "hinglish": _HINGLISH,
+}
+
 
 def speakable_tool(tool_names: Sequence[str]) -> str | None:
     """The first tool in this hop the customer is genuinely waiting on.
@@ -92,9 +165,23 @@ def speakable_tool(tool_names: Sequence[str]) -> str | None:
     return next((name for name in tool_names if name in _LOOKUP_TOOLS), None)
 
 
-def line_for(tool_name: str, *, rng: random.Random | None = None) -> str | None:
-    """A bridge line for one tool, or None if that tool is silent bookkeeping."""
-    options = _LINES.get(tool_name)
+def line_for(
+    tool_name: str, *, language: str | None = None, rng: random.Random | None = None
+) -> str | None:
+    """A bridge line for one tool, or None if that tool is silent bookkeeping.
+
+    Falls back to the English line when a language has none for this tool.
+    That is the lesser of two bad options: a line in the wrong language is
+    jarring, but several seconds of dead air on a live call reads as the
+    system having hung up.
+    """
+    if language is None:
+        from app.config import get_settings
+
+        language = get_settings().agent_language
+
+    lines = _BY_LANGUAGE.get((language or "en").strip().lower(), _ENGLISH)
+    options = lines.get(tool_name) or _ENGLISH.get(tool_name)
     if not options:
         return None
     return (rng or random).choice(options)

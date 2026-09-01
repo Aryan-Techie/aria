@@ -1,36 +1,57 @@
 """Builds the /join request body, confirmed against docs.agora.io this
 session: fields nest under "properties", not top-level as an earlier draft
 of this plan assumed. Full schema verified via the join.md API reference.
-"""
-from app.config import Settings
 
+Language is chosen by a profile rather than field by field - see
+app/language/profiles.py for why the ASR code, the voice, MiniMax's
+language_boost, the lines Agora speaks itself and the prompt's output-language
+rule cannot be set independently of one another.
+"""
+import logging
+
+from app.config import Settings
+from app.language.profiles import LanguageProfile, get_profile
+
+logger = logging.getLogger("aria")
 
 DEEPGRAM_WS_URL = "wss://api.deepgram.com/v1/listen"
 MINIMAX_WS_URL = "wss://api.minimax.io/ws/v1/t2a_v2"
 
-# Apple's real, public head office. Used rather than an invented branch
-# address so the agent is not stating a fabricated Apple location to a caller.
-GREETING_MESSAGE = (
-    "Thanks for calling Apple Business Sales, "
-    "Apple Park, One Apple Park Way in Cupertino. <#0.25#> "
-    "This is Aria speaking. <#0.2#> How can I help you today?"
-)
 
-# Kept short and low-commitment. Agora picks one at random the moment a turn
-# stalls, with no idea what the model is about to do, so anything that
-# promises a specific action ("I'll book that now") can contradict the answer
-# that follows. These only buy time.
-FILLER_PHRASES = [
-    "Let me pull that up for you. <#0.3#> One second.",
-    "Sure <#0.2#> give me just a second.",
-    "(breath) Okay, let me check that.",
-    "Mm, <#0.2#> one moment, I'm looking at it now.",
-    "Let me get you the exact number on that. <#0.3#> Bear with me.",
-    "Right, <#0.2#> just pulling that up.",
-]
+def profile_for(settings: Settings) -> LanguageProfile:
+    return get_profile(settings.agent_language)
 
 
-def _build_filler_words(settings: Settings) -> dict:
+def warn_on_language_overrides(settings: Settings, profile: LanguageProfile) -> list[str]:
+    """Say so, loudly, when a pinned setting is fighting the language profile.
+
+    ASR_LANGUAGE and MINIMAX_VOICE_ID are legitimate overrides - pinning
+    `hi` instead of the code-switching `multi`, or picking the male Hindi
+    voice, are both real things to want. But they are also the two lines most
+    likely to be left over in an existing .env from when this only spoke
+    English, and in that state setting AGENT_LANGUAGE=hi changes the prompt
+    and the greeting while the recogniser and the voice stay English. The call
+    half-switches, which is far more confusing to debug than not switching at
+    all. Returns the warnings as well as logging them so a test can assert on
+    them.
+    """
+    warnings: list[str] = []
+    if settings.asr_language and settings.asr_language != profile.asr_language:
+        warnings.append(
+            f"ASR_LANGUAGE={settings.asr_language!r} overrides the {profile.code!r} profile's "
+            f"{profile.asr_language!r}; blank it in .env to follow AGENT_LANGUAGE."
+        )
+    if settings.minimax_voice_id and settings.minimax_voice_id != profile.voice_id:
+        warnings.append(
+            f"MINIMAX_VOICE_ID={settings.minimax_voice_id!r} overrides the {profile.code!r} "
+            f"profile's {profile.voice_id!r}; blank it in .env to follow AGENT_LANGUAGE."
+        )
+    for warning in warnings:
+        logger.warning("language override: %s", warning)
+    return warnings
+
+
+def _build_filler_words(settings: Settings, profile: LanguageProfile) -> dict:
     """Agora's own stall-cover, keyed off how long our webhook stays silent.
 
     Both spellings of the nested config key appear in Agora's docs - the join
@@ -38,12 +59,17 @@ def _build_filler_words(settings: Settings) -> dict:
     examples call them both `config`. Sending both, with identical contents,
     so whichever one this deployment validates against is present; Agora
     ignores properties it does not recognise.
+
+    The phrases come from the language profile: these are spoken by Agora
+    rather than written by the model, so they are English until translated
+    here, and an English stall line dropped into a Hindi call is worse than
+    no stall line at all.
     """
     if not settings.filler_words_enabled:
         return {}
 
     trigger_config = {"response_wait_ms": settings.filler_response_wait_ms}
-    static_config = {"phrases": FILLER_PHRASES, "selection_rule": "shuffle"}
+    static_config = {"phrases": profile.filler_phrases, "selection_rule": "shuffle"}
 
     return {
         "filler_words": {
@@ -62,34 +88,56 @@ def _build_filler_words(settings: Settings) -> dict:
     }
 
 
-def _build_asr_params(settings: Settings) -> dict:
+def _build_asr_params(settings: Settings, profile: LanguageProfile) -> dict:
     """"ares" under managed mode failed live against this account's SKU, but
     deepgram + managed mode is confirmed working — Agora validates the
     vendor's own public endpoint URL against its own allowlist, then injects
-    its own key server-side, so no api_key is needed here in managed mode."""
+    its own key server-side, so no api_key is needed here in managed mode.
+
+    `language` belongs in here, NOT as a sibling of `params`. It used to sit
+    on the asr object itself, which Agora silently ignores along with every
+    other property it does not recognise - so the language setting had no
+    effect at all and Deepgram ran on its own English default. A caller
+    speaking Hindi was transcribed as English-shaped nonsense, and the model
+    answered the nonsense: that is where "sorry, English only" came from.
+    """
     if settings.asr_vendor == "deepgram":
-        params: dict = {"url": DEEPGRAM_WS_URL, "model": settings.deepgram_model}
+        params: dict = {
+            "url": DEEPGRAM_WS_URL,
+            "model": settings.deepgram_model,
+            "language": settings.asr_language or profile.asr_language,
+        }
         if settings.asr_credential_mode == "byok":
             params["api_key"] = settings.deepgram_api_key
         return params
     return {}
 
 
-def _build_tts_params(settings: Settings) -> dict:
+def _build_tts_params(settings: Settings, profile: LanguageProfile) -> dict:
     """minimax + managed mode confirmed working the same way as deepgram
     above (real endpoint URL, no key needed). elevenlabs stays available as
-    a byok fallback if the user switches TTS_VENDOR explicitly."""
+    a byok fallback if the user switches TTS_VENDOR explicitly.
+
+    `language_boost` is a top-level MiniMax parameter, not part of
+    voice_setting, and Agora does not validate it - its docs state that any
+    parameter it does not recognise is forwarded to the vendor untouched,
+    which is the only reason it can be set from here at all.
+    """
     if settings.tts_vendor == "minimax":
+        normalization = settings.minimax_english_normalization
+        if normalization is None:
+            normalization = profile.english_normalization
         return {
             "url": MINIMAX_WS_URL,
             "model": settings.minimax_model,
+            "language_boost": profile.language_boost,
             "voice_setting": {
-                "voice_id": settings.minimax_voice_id,
+                "voice_id": settings.minimax_voice_id or profile.voice_id,
                 "speed": settings.minimax_speed,
                 "vol": settings.minimax_vol,
                 "pitch": settings.minimax_pitch,
                 "emotion": settings.minimax_emotion,
-                "english_normalization": settings.minimax_english_normalization,
+                "english_normalization": normalization,
             },
             "audio_setting": {"sample_rate": 44100},
         }
@@ -114,6 +162,9 @@ def build_join_payload(
     llm_url: str,
     settings: Settings,
 ) -> dict:
+    profile = profile_for(settings)
+    warn_on_language_overrides(settings, profile)
+
     return {
         "name": f"aria-{session_id[:8]}",
         "properties": {
@@ -128,14 +179,13 @@ def build_join_payload(
             },
             "asr": {
                 "vendor": settings.asr_vendor,
-                "language": settings.asr_language,
                 "credential_mode": settings.asr_credential_mode,
-                "params": _build_asr_params(settings),
+                "params": _build_asr_params(settings, profile),
             },
             "tts": {
                 "vendor": settings.tts_vendor,
                 "credential_mode": settings.tts_credential_mode,
-                "params": _build_tts_params(settings),
+                "params": _build_tts_params(settings, profile),
             },
             "llm": {
                 "url": llm_url,
@@ -153,13 +203,15 @@ def build_join_payload(
                 # speech-2.8 features, see SPEECH_STYLE_PROMPT in
                 # tools/prompts.py. Answered switchboard-style (org, location,
                 # name, offer) because a bare "Hi, I'm Aria" gives the caller
-                # nothing to confirm they reached the right place.
-                "greeting_message": GREETING_MESSAGE,
+                # nothing to confirm they reached the right place. Comes from
+                # the language profile: this is the first thing the caller
+                # hears, so it decides which language they answer in.
+                "greeting_message": profile.greeting,
                 # What Agora's TTS says when our webhook times out, errors, or
                 # returns something invalid - NOT the model. If this line
                 # shows up mid-demo the backend is failing; read the log
                 # before touching the prompt.
-                "failure_message": "(breath) Sorry — could you say that once more? I didn't quite catch it.",
+                "failure_message": profile.failure_message,
                 # Deliberately empty: tool calls are handled inside our own
                 # backend's loop, not delegated to Agora-routed MCP servers —
                 # see the plan's tradeoff note on llm.mcp_servers.
@@ -193,6 +245,6 @@ def build_join_payload(
             # genuinely pulling it up. The phrases carry `<#x#>` pause markers
             # and speech-2.8 interjection tags for the same reason the rest of
             # her speech does.
-            **_build_filler_words(settings),
+            **_build_filler_words(settings, profile),
         },
     }

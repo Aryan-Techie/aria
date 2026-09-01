@@ -308,6 +308,73 @@ baselines; repeated data entry counts once, and an escalation counts zero.
 
 ---
 
+## She can take the call in Hindi
+
+`AGENT_LANGUAGE=hinglish` (or `hi`, or `en`). One setting, because language is
+not one setting - it is five things that have to agree, and any one of them left on its
+English default is enough to break the call on its own:
+
+| | Why it cannot be left alone |
+|---|---|
+| Deepgram's language code | Hindi audio transcribed as English comes back as nonsense, and the model answers the nonsense |
+| The MiniMax voice id | Voices are language-specific. `English_captivating_female1` reading Devanagari is not accented Hindi, it is unusable |
+| MiniMax `language_boost` | Unset, a Hindi voice still mispronounces the English product names in the same sentence |
+| The system prompt | She answers an English-transcribed question in English, because English is what the rest of her instructions are written in |
+| The greeting, failure line and bridge lines | **We** write these, not the model, so they stay English until translated. A Hindi call that says "let me pull that up for you" mid-turn tells the caller the Hindi was a veneer |
+
+So it is a profile, in `app/language/profiles.py`, and the five move together.
+
+**`hinglish` is the one you probably want.** A buyer discussing a device fleet switches
+between Hindi and English inside a single sentence, and a recogniser pinned to either one
+mangles the other half. That profile uses Deepgram's `multi` mode (English, Hindi and eight
+others) with MiniMax's `language_boost: auto`, and the prompt tells her to match whichever
+language the caller just used - Hindi for the conversation, English for product names,
+numbers and dates, which is how the call is actually held in an Indian office.
+
+**Devanagari, never romanised.** MiniMax's Hindi voices are trained on the script; "ek
+second" in Latin letters is read out as English words.
+
+**Pre-formatted strings stay English on purpose.** Slot labels and price summaries are built
+in code precisely so the model never does arithmetic on them, and the prompt says to speak
+them exactly as handed over. Translating a date back into Devanagari would undo the fix that
+stopped her calling a Monday "Sunday the seventh".
+
+### The bug this uncovered
+
+`language` was being sent as a **sibling** of `asr.params`, not inside it. Agora silently
+drops properties it does not recognise, so the setting never reached Deepgram and the
+recogniser ran on its own English default whatever `ASR_LANGUAGE` said. That is where "sorry,
+English only" came from - not a vendor limitation, and not something setting a language code
+would have fixed. It is now in `asr.params.language`, with a regression test asserting it is
+*not* a sibling.
+
+### Before you switch
+
+An existing `.env` from when this only spoke English pins `ASR_LANGUAGE=en` and
+`MINIMAX_VOICE_ID=English_captivating_female1`, and those override the profile - so
+`AGENT_LANGUAGE=hi` would switch the prompt and the greeting while the recogniser and the
+voice stayed English. **Blank both lines.** They are legitimate overrides otherwise (pinning
+`hi` over `multi`, or `hindi_male_1_v2` over the female voice), so they are kept - but the
+backend logs a warning naming the exact line whenever a pin is fighting the profile, because
+a call that half-switches is far worse to debug than one that does not switch at all.
+
+### What is not translated
+
+The confirmation email, the `.ics` invite and the end-of-call wrap-up are English. Business
+email in India is usually English so this is a deliberate boundary rather than an oversight,
+but it is a boundary: a fully Hindi call still produces an English invite.
+
+### Not yet confirmed on a live call
+
+Vendor support is documented, not measured. Deepgram lists Hindi and `multi` for nova-3;
+MiniMax publishes three Hindi voices and the `language_boost` parameter; Agora states it
+forwards parameters it does not validate straight to the vendor, which is what lets
+`language_boost` through. But this account has already had one (vendor, model) combination
+refused for its SKU under managed credentials, so a Hindi voice being available to *us*
+is a reasonable expectation and not a fact. Place one call before demoing it.
+
+---
+
 ## Design notes
 
 **Memory without a memory service.** Tools write qualification state — company, device count,
@@ -365,6 +432,7 @@ Everything is environment-driven — see `backend/.env.example` for the annotate
 | `EMAIL_FROM` | Blank falls back to `SMTP_USERNAME` - most providers reject anything else |
 | `EMAIL_BCC` | Optional silent copy to the rep on the meeting |
 | `REP_SUMMARY_EMAIL` | Where the end-of-call wrap-up is emailed. Blank still writes it to the CRM |
+| `AGENT_LANGUAGE` | `en`, `hi`, or `hinglish`. Sets ASR, voice, boost, greeting and prompt together |
 | `MINIMAX_EMOTION` | `fluent` reads conversational; `happy` sounds like a chirpy IVR |
 | `FILLER_WORDS_ENABLED` | Agora's own stall phrases. Off — see Design notes |
 | `STATE_DIR` | JSON snapshots for the in-memory stores; blank = pure memory |
@@ -394,7 +462,7 @@ localhost; they are not secrets and are not reused anywhere.
 cd backend && python -m pytest
 ```
 
-191 tests, ~11s, zero network calls. `conftest.py` blanks the env file so the suite never reads
+211 tests, ~9s, zero network calls. `conftest.py` blanks the env file so the suite never reads
 real credentials or touches disk, and the EspoCRM adapter is tested against
 `httpx.MockTransport` — it never needs Docker running.
 
@@ -413,6 +481,7 @@ real credentials or touches disk, and the EspoCRM adapter is tested against
 | `backend/app/tools/prompts.py` | Persona and speech markup — behaviour lives here, not in code |
 | `backend/app/tools/definitions.py` | The eight tool schemas |
 | `backend/app/agora/join_payload.py` | ASR/TTS/LLM/VAD config sent to Agora on `/join` |
+| `backend/app/language/profiles.py` | English / Hindi / Hinglish, and the five settings that must agree |
 | `backend/app/crm/espo_client.py` | EspoCRM REST client — auth, filters, datetime formats |
 | `backend/app/crm/espo_store.py` | Leads |
 | `backend/app/calendar/espo_store.py` | Meetings, with availability derived from real bookings |

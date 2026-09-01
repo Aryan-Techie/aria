@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from app.config import Settings, get_settings
+from app.language.profiles import get_profile
 
 ARIA_SYSTEM_PROMPT = """You are Aria, a voice sales specialist for Apple's business team - the team that helps companies deploy Mac, iPhone, and iPad to their employees. You are on a live phone call - replies are spoken aloud by text-to-speech, so keep them conversational, concise (1-3 sentences unless walking through options), and natural to say out loud. Never use markdown, bullet points, numbered lists, headers, or asterisks - everything you write gets read out as speech, so write it the way you would say it.
 
@@ -116,6 +117,17 @@ def build_system_prompt() -> str:
         f"that date rather than guessing, and prefer naming the day and date "
         f"together when you offer a meeting slot."
     )
+
+    # Which language to REPLY in. The persona above stays in English whatever
+    # the caller speaks: translating two thousand words of behaviour would be
+    # a second copy to keep in sync with every prompt change, and instructing
+    # the output language achieves the same thing. Without this she answers a
+    # Hindi question in English, because English is what the rest of her
+    # instructions are written in.
+    profile = get_profile(get_settings().agent_language)
+    if profile.prompt_instruction:
+        parts.append(profile.prompt_instruction)
+
     return "\n\n".join(parts)
 
 

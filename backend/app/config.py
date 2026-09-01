@@ -108,8 +108,20 @@ class Settings(BaseSettings):
     # documented public endpoint URL even under managed (Agora validates it
     # against its own allowlist, then injects its own key) — no external
     # vendor account or API key required for either default.
+    # Which language profile the agent runs in: "en", "hi", or "hinglish".
+    # One setting rather than five, because the ASR language, the TTS voice,
+    # MiniMax's language_boost, the spoken greeting/filler lines and the
+    # prompt's output-language rule all have to agree - see
+    # app/language/profiles.py. Any of them left on an English default is on
+    # its own enough to break a Hindi call.
+    agent_language: str = "en"
+
     asr_vendor: str = "deepgram"
-    asr_language: str = "en"
+    # Overridden by the language profile unless explicitly set. Kept as its
+    # own setting so a profile's ASR code can be swapped without editing the
+    # profile - e.g. pinning "hi" instead of "multi" if code-switching
+    # recognition turns out worse than single-language on real calls.
+    asr_language: str = ""
     asr_credential_mode: str = "managed"
     deepgram_model: str = "nova-3"
     deepgram_api_key: str = ""  # only used if ASR_CREDENTIAL_MODE is switched to byok
@@ -117,7 +129,10 @@ class Settings(BaseSettings):
     tts_vendor: str = "minimax"
     tts_credential_mode: str = "managed"
     minimax_model: str = "speech-2.8-turbo"
-    minimax_voice_id: str = "English_captivating_female1"
+    # Blank takes the language profile's voice. MiniMax voice ids are
+    # language-specific: an English voice reading Devanagari is not accented
+    # Hindi, it is unusable.
+    minimax_voice_id: str = ""
 
     # Delivery controls, all straight from MiniMax's t2a_v2 voice_setting.
     # Agora forwards tts.params to MiniMax verbatim, so anything MiniMax
@@ -136,7 +151,10 @@ class Settings(BaseSettings):
     # Expands "$999", "M3", "24/7" etc. into spoken form instead of letting
     # the model mangle them mid-sentence. Relevant here because nearly every
     # answer Aria gives contains a price.
-    minimax_english_normalization: bool = True
+    # None takes the language profile's answer. MiniMax documents this
+    # expansion pass as an English/Chinese feature, so it is off for Hindi -
+    # leaving it on spends latency on a pass that does not apply.
+    minimax_english_normalization: bool | None = None
 
     # Agora can speak a stall phrase itself, triggered only on how long our
     # webhook has been silent. OFF, because that trigger cannot express "speak
