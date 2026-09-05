@@ -137,10 +137,12 @@ def _build_tts_params(settings: Settings, profile: LanguageProfile) -> dict:
         normalization = settings.minimax_english_normalization
         if normalization is None:
             normalization = profile.english_normalization
-        return {
+        language_boost = (
+            settings.minimax_language_boost if settings.minimax_language_boost is not None else profile.language_boost
+        )
+        params = {
             "url": MINIMAX_WS_URL,
             "model": settings.minimax_model,
-            "language_boost": profile.language_boost,
             "voice_setting": {
                 "voice_id": settings.minimax_voice_id or profile.voice_id,
                 "speed": settings.minimax_speed if settings.minimax_speed is not None else profile.speech_speed,
@@ -151,6 +153,9 @@ def _build_tts_params(settings: Settings, profile: LanguageProfile) -> dict:
             },
             "audio_setting": {"sample_rate": 44100},
         }
+        if language_boost:
+            params["language_boost"] = language_boost
+        return params
     if settings.tts_vendor == "elevenlabs":
         return {
             "base_url": "wss://api.elevenlabs.io/v1",
