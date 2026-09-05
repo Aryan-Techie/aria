@@ -31,14 +31,18 @@ export function TransportRail({
   status,
   outcome,
   elapsedSeconds,
+  micMuted,
   onStart,
   onEnd,
+  onToggleMute,
 }: {
   status: CallStatus;
   outcome: string | null;
   elapsedSeconds: number;
+  micMuted: boolean;
   onStart: () => void;
   onEnd: () => void;
+  onToggleMute: () => void;
 }) {
   const lit = status === "connecting" || status === "active" || status === "ending";
 
@@ -77,13 +81,22 @@ export function TransportRail({
             Start call
           </button>
         ) : (
-          <button
-            className="switch"
-            onClick={onEnd}
-            disabled={status === "connecting" || status === "ending"}
-          >
-            End call
-          </button>
+          <>
+            <button
+              className={`switch${micMuted ? " live" : ""}`}
+              onClick={onToggleMute}
+              disabled={status !== "active"}
+            >
+              {micMuted ? "Unmute mic" : "Mute mic"}
+            </button>
+            <button
+              className="switch"
+              onClick={onEnd}
+              disabled={status === "connecting" || status === "ending"}
+            >
+              End call
+            </button>
+          </>
         )}
       </div>
     </aside>

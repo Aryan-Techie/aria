@@ -38,6 +38,7 @@ export default function Home() {
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [micMuted, setMicMuted] = useState(false);
 
   const sessionIdRef = useRef<string | null>(null);
   const clientRef = useRef<AgoraCallClient | null>(null);
@@ -218,6 +219,7 @@ export default function Home() {
       setPendingApprovalId(null);
       setApprovedPct(null);
       setApprovedBy(null);
+      setMicMuted(false);
 
       const client = new AgoraCallClient();
       clientRef.current = client;
@@ -254,14 +256,26 @@ export default function Home() {
     }
   }, []);
 
+  const handleToggleMute = useCallback(async () => {
+    const next = !micMuted;
+    try {
+      await clientRef.current?.setMicMuted(next);
+      setMicMuted(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [micMuted]);
+
   return (
     <div className="desk">
       <TransportRail
         status={status}
         outcome={outcome}
         elapsedSeconds={elapsedSeconds}
+        micMuted={micMuted}
         onStart={handleStart}
         onEnd={handleEnd}
+        onToggleMute={handleToggleMute}
       />
 
       <SessionTimeline events={events} toolStatus={toolStatus} error={error} />

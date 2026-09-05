@@ -277,4 +277,12 @@ export class AgoraCallClient {
   async leave(): Promise<void> {
     await this.teardown();
   }
+
+  /** `setMuted` (not `setEnabled`) - keeps capturing so it takes effect
+   * faster, and correctly fires user-published/user-unpublished on Agora's
+   * side so the agent knows the mic actually went away rather than the
+   * caller just going quiet. */
+  async setMicMuted(muted: boolean): Promise<void> {
+    await this.micTrack?.setMuted(muted);
+  }
 }
