@@ -27,11 +27,14 @@ class Settings(BaseSettings):
     # Comma-separated list of origins the browser frontend is served from.
     cors_allowed_origins: str = "http://localhost:3000"
 
-    # Primary reasoning LLM. Groq serves a tool-calling hop in well under a
-    # second where Anthropic took ~4s, which is the difference between a reply
-    # that lands inside Agora's timeout window and one that does not. Anthropic
-    # stays wired as the automatic fallback if Groq errors or is unset.
-    llm_provider: str = "groq"
+    # Primary reasoning LLM. "gemini" is a single-model path (no fallback
+    # routing) - fewer moving parts than the groq/anthropic pair below, tried
+    # here for lower latency off one vendor. "groq" keeps the
+    # groq-then-anthropic-fallback behaviour those settings describe. Revert
+    # to "groq" to go back to that.
+    llm_provider: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
     groq_api_key: str = ""
     # Chosen by measurement, not reputation - scripts/bench_llm.py runs
     # candidates against the real system prompt and the real tool schemas,
@@ -193,6 +196,11 @@ class Settings(BaseSettings):
     # language-specific: an English voice reading Devanagari is not accented
     # Hindi, it is unusable.
     minimax_voice_id: str = ""
+    # None takes the language profile's language_boost. Set to "" (empty
+    # string, not unset) to omit the parameter entirely rather than send it
+    # blank - e.g. to A/B a Hindi voice's pronunciation with vs without the
+    # boost applied.
+    minimax_language_boost: str | None = None
 
     # Delivery controls, all straight from MiniMax's t2a_v2 voice_setting.
     # Agora forwards tts.params to MiniMax verbatim, so anything MiniMax

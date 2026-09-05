@@ -5,6 +5,7 @@ client and no network/API key.
 """
 import json
 import logging
+import uuid
 from dataclasses import dataclass, field
 from typing import Iterator, Protocol
 
@@ -16,6 +17,11 @@ class ToolCall:
     id: str
     name: str
     input: dict
+    # Gemini 3's function-call parts carry an opaque signature that MUST be
+    # echoed back verbatim on the next hop's history or the API hard-errors
+    # ("Function call is missing a thought_signature") - confirmed live.
+    # None for every other provider, which never sets or reads this.
+    thought_signature: bytes | None = None
 
 
 @dataclass
@@ -301,6 +307,195 @@ class GroqChatClient:
         )
 
 
+# --------------------------------------------------------------------------
+# Gemini
+# --------------------------------------------------------------------------
+# Same Anthropic-block message shape as above. Gemini's own roles are "user"
+# and "model" (assistant -> model), and a tool result is a "user"-role
+# function_response part rather than a separate role - confirmed against the
+# live API, not just the docs.
+
+
+def _tools_to_gemini(tools: list[dict]):
+    from google.genai import types
+
+    return types.Tool(
+        function_declarations=[
+            types.FunctionDeclaration(
+                name=tool["name"],
+                description=tool.get("description", ""),
+                parameters_json_schema=tool.get("input_schema", {"type": "object", "properties": {}}),
+            )
+            for tool in tools
+        ]
+    )
+
+
+def _messages_to_gemini(messages: list[dict]):
+    from google.genai import types
+
+    contents = []
+    # tool_result blocks only carry the tool_use_id (Anthropic's shape) - this
+    # recovers the matching tool name from the tool_use block earlier in the
+    # same history, which Gemini's function_response part requires.
+    call_names: dict[str, str] = {}
+
+    for message in messages:
+        gemini_role = "model" if message.get("role") == "assistant" else "user"
+        content = message.get("content")
+
+        if isinstance(content, str):
+            if content.strip():
+                contents.append(types.Content(role=gemini_role, parts=[types.Part(text=content)]))
+            continue
+
+        parts = []
+        for block in content or []:
+            block_type = block.get("type")
+            if block_type == "text":
+                if block.get("text"):
+                    parts.append(types.Part(text=block["text"]))
+            elif block_type == "tool_use":
+                call_names[block["id"]] = block["name"]
+                parts.append(
+                    types.Part(
+                        function_call=types.FunctionCall(
+                            id=block["id"], name=block["name"], args=block.get("input") or {}
+                        ),
+                        thought_signature=block.get("thought_signature"),
+                    )
+                )
+            elif block_type == "tool_result":
+                tool_use_id = block.get("tool_use_id")
+                name = call_names.get(tool_use_id, "unknown_tool")
+                raw = block.get("content", "")
+                try:
+                    response = json.loads(raw) if isinstance(raw, str) else raw
+                except json.JSONDecodeError:
+                    response = raw
+                if not isinstance(response, dict):
+                    response = {"result": response}
+                parts.append(
+                    types.Part(
+                        function_response=types.FunctionResponse(id=tool_use_id, name=name, response=response)
+                    )
+                )
+        if parts:
+            contents.append(types.Content(role=gemini_role, parts=parts))
+
+    return contents
+
+
+def _gemini_parts_to_turn(parts, stop_reason: str) -> LLMTurn:
+    text_parts: list[str] = []
+    tool_calls: list[ToolCall] = []
+    for part in parts:
+        if part.text:
+            text_parts.append(part.text)
+        elif part.function_call:
+            tool_calls.append(
+                ToolCall(
+                    id=part.function_call.id or f"call_{uuid.uuid4().hex[:12]}",
+                    name=part.function_call.name,
+                    input=part.function_call.args or {},
+                    thought_signature=part.thought_signature,
+                )
+            )
+    return LLMTurn(
+        text="".join(text_parts),
+        tool_calls=tool_calls,
+        stop_reason="tool_use" if tool_calls else stop_reason,
+    )
+
+
+class GeminiChatClient:
+    def __init__(self, api_key: str, model: str, max_tokens: int = 1024):
+        self._api_key = api_key
+        self._model = model
+        self._max_tokens = max_tokens
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from google import genai
+
+            self._client = genai.Client(api_key=self._api_key)
+        return self._client
+
+    def _config(self, system: str, tools: list[dict]):
+        from google.genai import types
+
+        kwargs = {
+            "system_instruction": system,
+            "max_output_tokens": self._max_tokens,
+            # We drive the tool-calling loop ourselves (pipeline.py); the
+            # SDK's own auto-call-and-resend mode has nothing to call here.
+            "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True),
+            # Lowest thinking level: this sits on the conversational path
+            # where the customer is waiting, and tool-selection accuracy
+            # measured no loss at MINIMAL versus higher levels.
+            "thinking_config": types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL),
+        }
+        if tools:
+            kwargs["tools"] = [_tools_to_gemini(tools)]
+        return types.GenerateContentConfig(**kwargs)
+
+    def create_turn(self, *, system: str, messages: list[dict], tools: list[dict]) -> LLMTurn:
+        client = self._get_client()
+        response = client.models.generate_content(
+            model=self._model,
+            contents=_messages_to_gemini(messages),
+            config=self._config(system, tools),
+        )
+        candidate = response.candidates[0] if response.candidates else None
+        parts = (candidate.content.parts if candidate and candidate.content else None) or []
+        stop_reason = str(candidate.finish_reason) if candidate and candidate.finish_reason else "end_turn"
+        return _gemini_parts_to_turn(parts, stop_reason)
+
+    def stream_turn(
+        self, *, system: str, messages: list[dict], tools: list[dict]
+    ) -> Iterator[tuple[str, object]]:
+        client = self._get_client()
+        stream = client.models.generate_content_stream(
+            model=self._model,
+            contents=_messages_to_gemini(messages),
+            config=self._config(system, tools),
+        )
+
+        text_parts: list[str] = []
+        tool_calls: list[ToolCall] = []
+        stop_reason = "end_turn"
+
+        for chunk in stream:
+            if not chunk.candidates:
+                continue
+            candidate = chunk.candidates[0]
+            if candidate.finish_reason:
+                stop_reason = str(candidate.finish_reason)
+            for part in (candidate.content.parts if candidate.content else None) or []:
+                if part.text:
+                    text_parts.append(part.text)
+                    yield ("text", part.text)
+                elif part.function_call:
+                    tool_calls.append(
+                        ToolCall(
+                            id=part.function_call.id or f"call_{uuid.uuid4().hex[:12]}",
+                            name=part.function_call.name,
+                            input=part.function_call.args or {},
+                            thought_signature=part.thought_signature,
+                        )
+                    )
+
+        yield (
+            "done",
+            LLMTurn(
+                text="".join(text_parts),
+                tool_calls=tool_calls,
+                stop_reason="tool_use" if tool_calls else stop_reason,
+            ),
+        )
+
+
 class FallbackChatClient:
     """Runs `primary`, and falls back to `secondary` if it raises.
 
@@ -339,7 +534,9 @@ class FallbackChatClient:
 
 
 def default_llm_client() -> ChatLLMClient:
-    """Groq first for latency, Anthropic behind it as the safety net.
+    """Groq first for latency, Anthropic behind it as the safety net -
+    unless LLM_PROVIDER is "gemini", which is a single model with no fallback
+    at all (see the setting's comment in config.py).
 
     Falls straight through to Anthropic when Groq is unconfigured or the
     provider is switched over, so a missing GROQ_API_KEY degrades to the
@@ -348,6 +545,9 @@ def default_llm_client() -> ChatLLMClient:
     from app.config import get_settings
 
     settings = get_settings()
+
+    if settings.llm_provider == "gemini":
+        return GeminiChatClient(api_key=settings.gemini_api_key, model=settings.gemini_model)
 
     if settings.llm_provider != "groq" or not settings.groq_api_key:
         # Anthropic is the only provider, so it is the conversation - not a

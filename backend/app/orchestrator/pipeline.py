@@ -173,7 +173,10 @@ def _turn_to_assistant_content(turn: LLMTurn) -> list[dict]:
     if turn.text:
         content.append({"type": "text", "text": turn.text})
     for call in turn.tool_calls:
-        content.append({"type": "tool_use", "id": call.id, "name": call.name, "input": call.input})
+        block = {"type": "tool_use", "id": call.id, "name": call.name, "input": call.input}
+        if call.thought_signature is not None:
+            block["thought_signature"] = call.thought_signature
+        content.append(block)
     return content
 
 
