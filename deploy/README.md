@@ -30,7 +30,7 @@ break.
                    +---v---+
                    | Caddy |  automatic TLS, renews itself
                    +---+---+
-      aria.aroice.in   |   aria-crm.aroice.in
+      aria.aroice.in   |   crm.aria.aroice.in
         +--------------+--------------+
         |                             |
    /api  /agent  /rep  /healthz       +--> espocrm  (+ websocket, daemon)
@@ -102,7 +102,7 @@ Cloudflare dashboard → **aroice.in → DNS → Records → Add record**, twice
 | Type | Name       | IPv4 address     | Proxy status          | TTL  |
 |------|------------|------------------|-----------------------|------|
 | A    | `aria`     | *your public IP* | **DNS only** (grey)   | Auto |
-| A    | `aria-crm` | *your public IP* | **DNS only** (grey)   | Auto |
+| A    | `crm.aria` | *your public IP* | **DNS only** (grey)   | Auto |
 
 **The proxy status must be DNS only — the grey cloud, not the orange one.**
 This is the setting that quietly breaks everything if it is wrong, and the
@@ -130,12 +130,18 @@ which needs a Cloudflare API token and a Caddy image built with the
 `caddy-dns/cloudflare` plugin. Do not do this before the stack is up and
 working — debugging two TLS terminators at once is miserable.
 
+Note that `crm.aria.aroice.in` is a second-level subdomain, which Cloudflare's
+free universal certificate does **not** cover (it covers `*.aroice.in`, one
+level only). That costs nothing while the proxy is off, because Caddy issues
+its own certificate directly from Let's Encrypt. It only becomes a problem if
+the orange cloud is ever switched on for that record.
+
 Check it resolves before going further. Caddy cannot get a certificate for a
 name that does not point here yet:
 
 ```bash
 dig +short aria.aroice.in
-dig +short aria-crm.aroice.in
+dig +short crm.aria.aroice.in
 ```
 
 Both must print your Oracle public IP. If they print Cloudflare addresses
@@ -169,7 +175,7 @@ openssl rand -base64 24
 ```
 
 **`ESPOCRM_ADMIN_PASSWORD` must not be the local demo password.** That login
-is on the public internet the moment `aria-crm.aroice.in` resolves.
+is on the public internet the moment `crm.aria.aroice.in` resolves.
 
 Copy the model, voice and Agora keys across from your local `backend/.env` —
 same names, same values. Leave `ESPOCRM_API_KEY` and
@@ -220,7 +226,7 @@ curl -fsS https://aria.aroice.in/healthz
 ```
 
 Then open `https://aria.aroice.in` for the console and
-`https://aria-crm.aroice.in` for the CRM, and confirm **Products** lists
+`https://crm.aria.aroice.in` for the CRM, and confirm **Products** lists
 four rows with stock, price and lead time.
 
 ---
