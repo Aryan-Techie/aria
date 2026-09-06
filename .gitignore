@@ -4,6 +4,10 @@
 .env.*
 !.env.example
 !.env.local.example
+# The deployment template carries no secrets - only the names to fill in -
+# and is the one file a fresh server actually needs. `.env.*` above would
+# otherwise swallow it.
+!.env.production.example
 
 # Python
 .venv/

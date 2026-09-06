@@ -1,0 +1,72 @@
+# One hostname serves the console AND the API.
+#
+# That is the whole reason CORS does not appear anywhere in this deployment:
+# the browser fetches /api/... from the same origin it loaded the page from,
+# so there is no cross-origin request to allow. The split is by path, and the
+# paths come from the backend's own routers - /api, /agent, /rep, /healthz
+# (see backend/app/routes/). Everything else is the Next.js console.
+#
+# Caddy gets the certificate from Let's Encrypt on first boot and renews it
+# on its own. That is what replaces the cloudflared quick tunnel, whose
+# hostname changed on every single run.
+
+{$ARIA_DOMAIN} {
+	encode zstd gzip
+
+	# Agora's LLM webhook. Long-lived streaming response: the model writes a
+	# reply token by token and Caddy must not buffer it into one lump at the
+	# end, or every reply arrives after the silence instead of during it.
+	handle /agent/* {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+
+	# Server-sent events for the console's live transcript. Same reason.
+	handle /api/session/* {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# The page a human rep opens to step into a live call.
+	handle /rep/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /healthz {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+# EspoCRM on its own hostname rather than a subpath: the official image serves
+# from the web root and a subdirectory install rewrites asset URLs it does not
+# control. This is the address someone opens to change a stock number while
+# Aria is mid-call.
+{$ARIA_CRM_DOMAIN} {
+	encode zstd gzip
+
+	# Espo pushes record changes to the open browser tab over this socket -
+	# it is what makes a stock edit appear without a reload. Caddy proxies
+	# the upgrade through; without this block the CRM still works and simply
+	# needs a manual refresh, which is a much weaker thing to demo.
+	@websocket {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	handle @websocket {
+		reverse_proxy espocrm-websocket:8080
+	}
+
+	handle {
+		reverse_proxy espocrm:80
+	}
+}

@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+#
+# Built on the server, for the server: Oracle's A1.Flex is ARM (aarch64), so
+# this must not be a cross-built amd64 image. Everything here is
+# architecture-neutral and `docker compose build` on the box produces arm64.
+FROM python:3.13-slim
+
+# curl is for the container healthcheck (/healthz), which is what tells
+# compose the backend is actually serving rather than merely started.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Requirements first so a code change does not re-resolve the dependency tree
+# on every deploy - on one OCPU that is the difference between a 20-second
+# rebuild and a five-minute one.
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./
+
+# Snapshots of the CRM/calendar/inbox stores live here. Mounted as a named
+# volume in compose so a redeploy does not wipe a booked meeting.
+ENV STATE_DIR=/app/state
+RUN mkdir -p /app/state
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -fsS http://localhost:8000/healthz || exit 1
+
+# --workers 1 is NOT a resource decision and must not be "tuned" upwards.
+# The session store is an in-process dict (app/sessions/store.py), so a
+# second worker gets its own empty copy: a call started on worker A is
+# invisible to worker B, and Agora's next webhook for that call lands on a
+# process that has never heard of it. Scaling out means moving sessions to
+# Redis first.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+#
+# Two stages: Next.js needs its dev dependencies to build and none of them to
+# run, and on a 1-OCPU box the smaller runtime image is worth the extra stage.
+FROM node:22-slim AS build
+
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json* ./
+# `npm ci` when there is a lockfile, `npm install` when there is not - the
+# repo does not commit frontend/package-lock.json today.
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+COPY frontend/ ./
+
+# NEXT_PUBLIC_* is inlined into the client bundle at BUILD time, not read at
+# runtime, so the backend URL has to be present here. Passed through from the
+# compose file's build args. Getting this wrong produces a console that loads
+# and then cannot reach the API from the browser.
+ARG NEXT_PUBLIC_BACKEND_URL=""
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+RUN npm run build
+
+FROM node:22-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+
+EXPOSE 3000
+CMD ["npm", "run", "start"]

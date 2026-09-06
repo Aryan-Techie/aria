@@ -1,0 +1,166 @@
+# The whole stack on one Oracle A1.Flex box, behind Caddy with real TLS.
+#
+# What this replaces: run.bat's laptop + cloudflared quick tunnel, whose
+# hostname was minted fresh on every start. Everything here is addressed by a
+# domain that does not move, which is also what makes the APK's baked-in
+# server address worth baking in.
+#
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.production up -d --build
+#
+# Run it from the REPO ROOT, not from deploy/ - the build contexts below are
+# repo-relative so the Dockerfiles can reach backend/ and frontend/.
+name: aria
+
+services:
+  caddy:
+    image: caddy:2
+    container_name: aria-caddy
+    restart: unless-stopped
+    # The only two ports open to the internet. Everything else talks over the
+    # compose network and is unreachable from outside the box - the backend,
+    # the database and Espo's HTTP port are deliberately NOT published.
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ARIA_DOMAIN: ${ARIA_DOMAIN:?set ARIA_DOMAIN in deploy/.env.production}
+      ARIA_CRM_DOMAIN: ${ARIA_CRM_DOMAIN:?set ARIA_CRM_DOMAIN in deploy/.env.production}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The issued certificates. Without this volume every restart asks Let's
+      # Encrypt for a new one and walks straight into their rate limit.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+      - frontend
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    container_name: aria-backend
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      # Inside the compose network Espo is reachable by service name, so the
+      # CRM calls never leave the box.
+      ESPOCRM_BASE_URL: http://espocrm:80
+      STATE_DIR: /app/state
+    volumes:
+      # Booked meetings and lead records survive a redeploy.
+      - backend-state:/app/state
+    depends_on:
+      espocrm:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        # Same origin as the page itself - see deploy/Caddyfile. Baked into
+        # the client bundle at build time, which is why a domain change means
+        # a frontend rebuild, not just a restart.
+        NEXT_PUBLIC_BACKEND_URL: https://${ARIA_DOMAIN}
+    container_name: aria-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  espocrm-db:
+    image: mariadb:11
+    container_name: aria-espocrm-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: espocrm
+      MARIADB_USER: espocrm
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?set MARIADB_PASSWORD}
+    volumes:
+      - espocrm-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      start_period: 30s
+      timeout: 10s
+      retries: 12
+
+  espocrm:
+    image: espocrm/espocrm:latest
+    container_name: aria-espocrm
+    restart: unless-stopped
+    environment:
+      ESPOCRM_DATABASE_PLATFORM: Mysql
+      ESPOCRM_DATABASE_HOST: espocrm-db
+      ESPOCRM_DATABASE_USER: espocrm
+      ESPOCRM_DATABASE_PASSWORD: ${MARIADB_PASSWORD}
+      ESPOCRM_ADMIN_USERNAME: ${ESPOCRM_ADMIN_USERNAME:-admin}
+      # NOT the local demo password. This login is on the public internet now.
+      ESPOCRM_ADMIN_PASSWORD: ${ESPOCRM_ADMIN_PASSWORD:?set ESPOCRM_ADMIN_PASSWORD}
+      # Must match how the BROWSER reaches it or Espo builds broken links
+      # into every page it renders.
+      ESPOCRM_SITE_URL: https://${ARIA_CRM_DOMAIN}
+      ESPOCRM_CONFIG_USE_WEB_SOCKET: "true"
+      # wss, not ws: the page is served over TLS and a browser refuses to open
+      # an insecure socket from a secure page.
+      ESPOCRM_CONFIG_WEB_SOCKET_URL: wss://${ARIA_CRM_DOMAIN}
+      ESPOCRM_CONFIG_WEB_SOCKET_ZERO_M_Q_SUBMISSION_DSN: tcp://espocrm-websocket:7777
+    # EspoCRM refuses to auto-install if /var/www/html is mounted whole - an
+    # empty volume there shadows the shipped application and the entrypoint
+    # bails with "LEGACY INSTALLATION METHOD DETECTED", leaving the API
+    # returning 500 forever. Only these three subdirectories may be persisted.
+    # Loopback ONLY - not 0.0.0.0. The public way in is Caddy on
+    # crm.<domain>; this exists so scripts/provision_crm.py can be run from
+    # the host, where it needs both the REST API and a Docker socket (it
+    # installs layouts with `docker cp`). Binding it to 127.0.0.1 keeps it
+    # off the internet: an unauthenticated 8080 on a public IP is an open
+    # CRM.
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    depends_on:
+      espocrm-db:
+        condition: service_healthy
+
+  espocrm-websocket:
+    image: espocrm/espocrm:latest
+    container_name: aria-espocrm-ws
+    restart: unless-stopped
+    environment:
+      ESPOCRM_CONFIG_USE_WEB_SOCKET: "true"
+      ESPOCRM_CONFIG_WEB_SOCKET_URL: wss://${ARIA_CRM_DOMAIN}
+      ESPOCRM_CONFIG_WEB_SOCKET_ZERO_M_Q_SUBSCRIBER_DSN: tcp://*:7777
+      ESPOCRM_CONFIG_WEB_SOCKET_ZERO_M_Q_SUBMISSION_DSN: tcp://espocrm-websocket:7777
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    entrypoint: docker-websocket.sh
+    depends_on:
+      - espocrm
+
+  espocrm-daemon:
+    image: espocrm/espocrm:latest
+    container_name: aria-espocrm-daemon
+    restart: unless-stopped
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    entrypoint: docker-daemon.sh
+    depends_on:
+      - espocrm
+
+volumes:
+  caddy-data:
+  caddy-config:
+  backend-state:
+  espocrm-db:
+  espocrm-data:
+  espocrm-custom:
+  espocrm-client-custom:

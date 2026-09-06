@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -27,9 +28,16 @@ import urllib.parse
 import urllib.request
 from base64 import b64encode
 
-BASE_URL = "http://localhost:8080"
-ADMIN_USER = "admin"
-ADMIN_PASSWORD = "aria-demo-admin"
+# Overridable so the same script provisions the deployed stack, where the
+# admin password is not the local demo one and Espo is bound to loopback
+# rather than published. Defaults are the local docker-compose values, so
+# running this on a laptop needs no environment at all.
+#
+# Run it on the HOST, not inside a container: the layout step below copies
+# files in with `docker cp`, which needs a Docker socket.
+BASE_URL = os.environ.get("ESPOCRM_BASE_URL", "http://localhost:8080")
+ADMIN_USER = os.environ.get("ESPOCRM_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ESPOCRM_ADMIN_PASSWORD", "aria-demo-admin")
 
 ROLE_NAME = "Aria Voice Agent"
 API_USER_NAME = "aria-agent"
