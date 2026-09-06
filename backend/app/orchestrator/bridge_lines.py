@@ -45,6 +45,7 @@ from collections.abc import Sequence
 # because the customer then waits for information that was never coming.
 _LOOKUP_TOOLS = {
     "search_pricing_rag",
+    "check_inventory",
     "calendar_check_availability",
     "calendar_book_meeting",
     "negotiate_deal",
@@ -62,6 +63,11 @@ _ENGLISH: dict[str, tuple[str, ...]] = {
         "Let me get you the exact figure on that. <#0.25#> Bear with me.",
         "(breath) Right, <#0.2#> checking that now.",
         "Good question <#0.2#> give me a second to get it right.",
+    ),
+    "check_inventory": (
+        "Let me check what we've actually got. <#0.25#> One second.",
+        "Okay <#0.2#> let me look at the stock on that.",
+        "Give me a second <#0.2#> I'll tell you exactly how many we have.",
     ),
     "calendar_check_availability": (
         "Let me pull up the calendar. <#0.25#> One second.",
@@ -101,6 +107,10 @@ _HINDI: dict[str, tuple[str, ...]] = {
         "मैं आपको exact figure बताती हूँ. <#0.25#> बस एक पल.",
         "(breath) अच्छा सवाल है <#0.2#> मुझे एक सेकंड दीजिए.",
     ),
+    "check_inventory": (
+        "मैं देखती हूँ अभी हमारे पास कितना stock है. <#0.25#> एक सेकंड.",
+        "ठीक है <#0.2#> मैं exact number बताती हूँ, एक पल.",
+    ),
     "calendar_check_availability": (
         "मैं calendar देखती हूँ. <#0.25#> एक सेकंड.",
         "ठीक है, <#0.2#> देखती हूँ कौन सा time खाली है.",
@@ -129,6 +139,10 @@ _HINGLISH: dict[str, tuple[str, ...]] = {
         "Sure <#0.2#> एक सेकंड, मैं pricing निकालती हूँ.",
         "ठीक है <#0.2#> let me pull that up for you.",
         "मैं आपको exact figure बताती हूँ <#0.25#> one moment.",
+    ),
+    "check_inventory": (
+        "Let me check the stock <#0.25#> एक सेकंड.",
+        "ठीक है <#0.2#> मैं exact number बताती हूँ.",
     ),
     "calendar_check_availability": (
         "Let me check the calendar <#0.25#> एक सेकंड.",

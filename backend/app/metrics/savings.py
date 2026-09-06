@@ -30,6 +30,10 @@ BASELINE_MINUTES: dict[str, float] = {
     "crm_qualify_lead": 1.0,
     # Looking a price, spec or comparison up in the deck.
     "search_pricing_rag": 2.0,
+    # Asking ops or the warehouse system what is actually on hand, and
+    # waiting for the answer. NOT once-per-call: stock moves, and a second
+    # check later in the call is a second piece of real work.
+    "check_inventory": 3.0,
     # Emailing a solutions engineer and waiting for the reply - the part
     # that used to happen after the call, if it happened at all.
     "ask_solutions_engineer": 12.0,

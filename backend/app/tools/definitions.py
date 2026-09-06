@@ -24,6 +24,36 @@ TOOLS: list[dict] = [
         },
     },
     {
+        "name": "check_inventory",
+        "description": (
+            "Check LIVE stock for a product: how many units are on hand right "
+            "now, the lead time if they are not, and the unit price. Use this "
+            "for anything about availability, quantities, or delivery - 'do you "
+            "have', 'how many', 'is it in stock', 'can we get 200 by October'. "
+            "search_pricing_rag does NOT know stock: it reads fixed documents, "
+            "while this reads the warehouse record that changes during the day. "
+            "Never state or estimate availability without calling this first."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product": {
+                    "type": "string",
+                    "description": (
+                        "The product as the customer named it, e.g. 'iPhone 15', "
+                        "'MacBook Airs', 'the 11 inch iPad Pro'. Do not translate "
+                        "it into a SKU."
+                    ),
+                },
+                "quantity": {
+                    "type": "integer",
+                    "description": "How many they asked for, if they named a number.",
+                },
+            },
+            "required": ["product"],
+        },
+    },
+    {
         "name": "crm_upsert_lead",
         "description": (
             "Create or update the qualification record for this call. Only pass "

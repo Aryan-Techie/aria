@@ -93,6 +93,12 @@ class Settings(BaseSettings):
     # so bookings are assigned to a regular user. Printed by
     # scripts/provision_crm.py.
     espocrm_assigned_user_id: str = ""
+    # Stock lookups get their own, much shorter timeout than the CRM writes
+    # do. This read happens while a customer is waiting for an answer, so a
+    # slow CRM has to fail fast and let her say "let me confirm that" - five
+    # seconds of dead air mid-call is worse than not knowing. See
+    # app/inventory/store.py.
+    inventory_timeout_seconds: float = 0.8
 
     # The person a handoff goes to. Shown on the console, spoken by Aria as
     # she hands over, and printed on the rep's join page (routes/rep.py).

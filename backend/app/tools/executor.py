@@ -16,6 +16,8 @@ from app.crm import service as crm_service
 from app.deal import desk, engine, policy
 from app.escalation import service as escalation_service, triggers
 from app.escalation.models import TriggerSource
+from app.inventory import service as inventory_service
+from app.inventory.models import InventoryUnavailable
 from app.memory.schema import Objection
 from app.notify import service as notify_service
 from app.rag import retriever
@@ -375,6 +377,109 @@ def _negotiation_guidance(offer, negotiation) -> str:
     )
 
 
+
+def _check_inventory(tool_input: dict, session, **_) -> dict:
+    """Live stock, kept off the RAG path on purpose.
+
+    Three outcomes, and they are three different sentences to a customer:
+    the row was read (answer it), no row matched (we do not carry that, here
+    is what we do), or the stock system did not answer in time (say you will
+    confirm - never "we have none", which is a claim nobody checked).
+    """
+    query = (tool_input.get("product") or "").strip()
+    quantity = int(tool_input.get("quantity") or 0)
+    if not query:
+        return {"error": "no_product", "guidance": "Ask which product they mean, then call again."}
+
+    try:
+        product, alternatives = inventory_service.find(query)
+    except InventoryUnavailable:
+        # Deliberately not a stock figure of any kind. The lookup failed; the
+        # only honest thing she can say is that she will confirm it.
+        return {
+            "available": None,
+            "error": "inventory_unavailable",
+            "guidance": (
+                "The stock system did not answer. Do NOT say it is in stock and do NOT "
+                "say it is out of stock - you do not know. Tell them you will confirm "
+                "the exact number and come back on it, keep the call moving, and if "
+                "they need the figure to decide, offer to have a rep confirm it."
+            ),
+        }
+
+    if product is None:
+        return {
+            "found": False,
+            "asked_for": query,
+            "we_stock": [p.name for p in alternatives],
+            "guidance": (
+                "We have no stock record for that. Say we do not carry it rather than "
+                "guessing, name what we do have from we_stock, and ask which of those fits."
+            ),
+        }
+
+    status = product.resolved_status()
+    payload = {
+        "found": True,
+        "product": product.name,
+        "sku": product.sku,
+        "units_in_stock": product.stock_qty,
+        "availability": status,
+        "unit_price_usd": product.price_usd,
+        "lead_time_days": product.lead_time_days,
+    }
+    if alternatives:
+        # "iPad" is two rows. Picking one silently is how a customer gets
+        # quoted stock for a product they were not asking about.
+        payload["also_matched"] = [p.name for p in alternatives]
+        payload["guidance"] = (
+            f"More than one product matches what they said. Give the figure for "
+            f"{product.name}, then check which one they meant."
+        )
+        return payload
+
+    if quantity:
+        payload["requested_quantity"] = quantity
+        payload["can_fulfil_now"] = product.can_fulfil(quantity)
+
+    if status == "out_of_stock":
+        # The alternatives are NAMED, not left to her. Told only to "offer a
+        # model we do have", a live turn offered the customer an iPhone 15
+        # Pro - which has no row in this catalogue at all. A product invented
+        # to soften an out-of-stock answer is the exact failure this tool
+        # exists to prevent.
+        instead = inventory_service.in_stock_alternatives(product.sku)
+        payload["in_stock_instead"] = [
+            {"product": p.name, "units_in_stock": p.stock_qty, "unit_price_usd": p.price_usd}
+            for p in instead
+        ]
+        payload["guidance"] = (
+            "Out of stock. Say so plainly and give the lead time in days in the same "
+            "breath - a date is the useful part, not the zero. Then offer the next step: "
+            "reserve units against that lead time, or one of the products in "
+            "in_stock_instead. Offer NOTHING that is not on that list - if you name a "
+            "product we have no record of, you have just promised a customer something "
+            "that may not exist."
+        )
+    elif quantity and not payload.get("can_fulfil_now"):
+        payload["guidance"] = (
+            f"We hold {product.stock_qty}, they asked for {quantity}. Say what can ship now, "
+            f"then use the lead time for the rest - a split delivery is a real answer and "
+            f"'no' is not. Never round the number up."
+        )
+    elif status == "low_stock":
+        payload["guidance"] = (
+            "Stock is thin. Give the exact number, say it is moving, and use that as the "
+            "reason to lock in a meeting or a reservation now."
+        )
+    else:
+        payload["guidance"] = (
+            "In stock. Give the number and lead time as written here - do not round it, "
+            "and do not promise a delivery date the lead time does not support."
+        )
+    return payload
+
+
 def _log_objection(tool_input: dict, session, **_) -> dict:
     topic = tool_input["topic"]
     resolved = tool_input.get("resolved", False)
@@ -408,6 +513,7 @@ def _update_sentiment(tool_input: dict, session, **_) -> dict:
 
 _HANDLERS = {
     "search_pricing_rag": _search_pricing_rag,
+    "check_inventory": _check_inventory,
     "ask_solutions_engineer": _ask_solutions_engineer,
     "crm_upsert_lead": _crm_upsert_lead,
     "crm_qualify_lead": _crm_qualify_lead,

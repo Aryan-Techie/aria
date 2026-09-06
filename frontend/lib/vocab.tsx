@@ -7,6 +7,7 @@
 /** What a tool did, past tense - shown once it has returned. */
 export const TOOL_DONE: Record<string, string> = {
   search_pricing_rag: "Looked up pricing",
+  check_inventory: "Checked live stock",
   crm_upsert_lead: "Updated the lead",
   crm_qualify_lead: "Qualified the lead",
   log_objection: "Logged an objection",
@@ -21,6 +22,7 @@ export const TOOL_DONE: Record<string, string> = {
 /** What a tool is doing, present tense - shown while it is in flight. */
 export const TOOL_BUSY: Record<string, string> = {
   search_pricing_rag: "Pulling those numbers up",
+  check_inventory: "Checking what is in stock",
   crm_upsert_lead: "Writing to the CRM",
   crm_qualify_lead: "Qualifying the lead",
   log_objection: "Noting that",
@@ -45,6 +47,7 @@ export const BASELINE_MINUTES: Record<string, number> = {
   crm_upsert_lead: 3,
   crm_qualify_lead: 1,
   search_pricing_rag: 2,
+  check_inventory: 3,
   ask_solutions_engineer: 12,
   negotiate_deal: 20,
   calendar_check_availability: 4,
@@ -101,6 +104,14 @@ export function ToolIcon({ tool }: { tool: string }) {
       <svg viewBox="0 0 24 24" {...stroke}>
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.5-3.5" />
+      </svg>
+    );
+  }
+  if (tool === "check_inventory") {
+    return (
+      <svg viewBox="0 0 24 24" {...stroke}>
+        <path d="M3 8.5 12 4l9 4.5v7L12 20l-9-4.5z" />
+        <path d="M3 8.5 12 13l9-4.5M12 13v7" />
       </svg>
     );
   }
