@@ -40,6 +40,8 @@ written handoff brief — the moment she genuinely should.
 - [How a call actually flows](#how-a-call-actually-flows)
 - [Three layers of who is talking](#three-layers-of-who-is-talking)
 - [The console](#the-console)
+- [The CRM](#the-crm)
+- [Mobile app for the rep](#mobile-app-for-the-rep)
 - [Configuration](#configuration)
 - [Tests](#tests)
 - [Project layout](#project-layout)
@@ -222,6 +224,28 @@ she actually says. Agora never sees any of it.
 - **Deal** — the three limits (Aria/desk/floor) and every round offered.
 - **Handoff** — the escalation guardrails filling up live, then the join link.
 - **Brief** — after the call ends, the AI-written wrap-up for the rep.
+
+## The CRM
+
+Not a mock — a real **EspoCRM** instance, running in Docker, backing every product, lead, and
+meeting Aria touches.
+
+<p align="center">
+  <img src="assets/crm-products.jpg" width="49%" alt="EspoCRM Products list — the real catalog Aria's pricing tool searches">
+  <img src="assets/crm-product-detail.jpg" width="49%" alt="EspoCRM Product detail view — an iPhone 15 record">
+</p>
+
+`scripts/provision_crm.py` sets it up headlessly — role, API key, custom fields, and layout — so
+it's reproducible on a fresh machine instead of twenty minutes of clicking.
+
+## Mobile app for the rep
+
+A warm transfer needs somewhere for the human to land. The Expo app surfaces the live escalation
+queue and each call's AI-written brief, so a rep isn't stuck at a desktop waiting for a handoff.
+
+<p align="center">
+  <img src="assets/mobile-app-inbox.jpg" width="280" alt="Aria mobile app — escalation inbox showing a customer waiting and the AI-written call outcome">
+</p>
 
 ## Configuration
 
