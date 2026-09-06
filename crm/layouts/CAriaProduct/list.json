@@ -1,0 +1,8 @@
+[
+    {"name": "name", "link": true, "width": 30},
+    {"name": "sku", "width": 15},
+    {"name": "stockQty", "width": 12},
+    {"name": "status", "width": 15},
+    {"name": "priceUsd", "width": 12},
+    {"name": "leadTimeDays", "width": 12}
+]

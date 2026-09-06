@@ -1,0 +1,16 @@
+[
+    {
+        "label": "Overview",
+        "rows": [
+            [{"name": "name"}, {"name": "sku"}],
+            [{"name": "stockQty"}, {"name": "status"}],
+            [{"name": "priceUsd"}, {"name": "leadTimeDays"}]
+        ]
+    },
+    {
+        "label": "Details",
+        "rows": [
+            [{"name": "description", "fullWidth": true}]
+        ]
+    }
+]

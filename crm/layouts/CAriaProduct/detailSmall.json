@@ -1,0 +1,9 @@
+[
+    {
+        "label": "Overview",
+        "rows": [
+            [{"name": "name"}, {"name": "sku"}],
+            [{"name": "stockQty"}, {"name": "status"}]
+        ]
+    }
+]

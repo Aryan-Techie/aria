@@ -48,8 +48,8 @@ REP_USER_NAME = "aria"
 # parses PUT Admin/layout/... with "Admin" as the scope ("Admin is not
 # customizable"). The file path is the stable interface.
 CONTAINER = "aria-espocrm"
-LAYOUT_SRC = pathlib.Path(__file__).resolve().parent.parent / "crm" / "layouts" / "Lead" / "detail.json"
-LAYOUT_DEST_DIR = "/var/www/html/custom/Espo/Custom/Resources/layouts/Lead"
+LAYOUT_ROOT = pathlib.Path(__file__).resolve().parent.parent / "crm" / "layouts"
+LAYOUT_DEST_ROOT = "/var/www/html/custom/Espo/Custom/Resources/layouts"
 
 # Qualification state has no home among EspoCRM's stock Lead fields, and
 # stuffing it into `description` as prose makes the live-update demo
@@ -78,6 +78,53 @@ CUSTOM_FIELDS = [
     {"name": "ariaSessionId", "type": "varchar", "label": "Aria Session", "maxLength": 64},
 ]
 
+# Live stock, as a real entity in the CRM rather than another document in the
+# RAG corpus. Pricing and features are prose and belong in app/rag/docs; how
+# many units are on the shelf is a number that has to be right at the moment
+# it is asked, and a keyword search over documents is how an agent ends up
+# confidently quoting yesterday's figure.
+#
+# Putting it in EspoCRM buys the editing UI for free, and the websocket
+# container already running means a change made in the browser is live for the
+# next question she is asked - no restart, no re-ingest.
+#
+# NOTE EspoCRM prefixes custom ENTITIES with "C" as well as custom fields, so
+# creating "AriaProduct" yields a scope addressed as "CAriaProduct". Confirmed
+# against this build: the create call is POST EntityManager/action/createEntity
+# (Admin/entityManager/createEntity 404s here), and removeEntity wants the
+# prefixed name back or answers 403.
+INVENTORY_ENTITY = "AriaProduct"
+INVENTORY_SCOPE = "CAriaProduct"
+
+# `name` comes with every Base entity, so only the stock-specific columns are
+# created here. NOTE these are NOT c-prefixed: the "c" prefix applies to custom
+# fields added to a STOCK entity (Lead -> cStockQty), but a field created on a
+# custom entity keeps the name it was given. Verified against this build's
+# Metadata: entityDefs.CAriaProduct.fields has `sku`, not `cSku`. Filtering on
+# the prefixed name answers 400 "Not existing attribute 'cSku' in where."
+INVENTORY_FIELDS = [
+    {"name": "sku", "type": "varchar", "label": "SKU", "maxLength": 40},
+    {"name": "stockQty", "type": "int", "label": "Units in stock", "min": 0, "max": 1000000},
+    {"name": "priceUsd", "type": "float", "label": "Unit price (USD)", "min": 0},
+    {"name": "leadTimeDays", "type": "int", "label": "Lead time (days)", "min": 0, "max": 365},
+    {
+        "name": "status",
+        "type": "enum",
+        "label": "Availability",
+        "options": ["", "in_stock", "low_stock", "out_of_stock", "discontinued"],
+    },
+]
+
+# Enough rows to hold a conversation about. Matched to the device lineup in
+# app/rag/docs/pricing.json so she cannot quote a price for something that has
+# no stock record, or stock for something with no price.
+SEED_PRODUCTS = [
+    {"name": "iPad 10th gen", "sku": "IPAD-10", "stockQty": 240, "priceUsd": 349.0, "leadTimeDays": 3},
+    {"name": "iPad Pro M4 11-inch", "sku": "IPADPRO-M4-11", "stockQty": 60, "priceUsd": 999.0, "leadTimeDays": 7},
+    {"name": "MacBook Air M3 13-inch", "sku": "MBA-M3-13", "stockQty": 85, "priceUsd": 1099.0, "leadTimeDays": 5},
+    {"name": "iPhone 15", "sku": "IPHONE-15", "stockQty": 0, "priceUsd": 799.0, "leadTimeDays": 21},
+]
+
 # Only what the tool loop actually touches. Lead and Meeting are the two
 # entities Aria writes to; Account/Contact are readable so a lookup against an
 # existing customer works, but she has no business deleting anything.
@@ -95,6 +142,9 @@ ROLE_DATA = {
         # operation, and Espo refuses it ("No foreign record access for link
         # operation") unless the API user can read that User record.
         "User": {"create": "no", "read": "all", "edit": "no", "delete": "no", "stream": "no"},
+        # Read-only on purpose. Stock is changed by a person in the CRM, or by
+        # whatever system owns it — never by the agent mid-call.
+        INVENTORY_SCOPE: {"create": "no", "read": "all", "edit": "no", "delete": "no", "stream": "no"},
     },
     "fieldData": {},
 }
@@ -147,9 +197,17 @@ def _find_one(entity: str, field: str, value: str) -> dict | None:
 
 
 def _install_layout() -> None:
-    """Copy the Lead detail layout into the container and clear the cache."""
-    if not LAYOUT_SRC.exists():
-        print(f"layout    : SKIPPED, {LAYOUT_SRC} not found")
+    """Copy every layout under crm/layouts/<Scope>/ into the container.
+
+    A custom entity gets no layouts of its own: EspoCRM falls back to a default
+    that shows `name` and nothing else, so the stock columns exist in the API
+    and are invisible - and therefore uneditable - in the browser. Verified on
+    this build: before these files, CAriaProduct's detail view listed only
+    Name / Assigned User / Teams / Created.
+    """
+    dirs = sorted(d for d in LAYOUT_ROOT.iterdir() if d.is_dir()) if LAYOUT_ROOT.exists() else []
+    if not dirs:
+        print(f"layout    : SKIPPED, no layouts under {LAYOUT_ROOT}")
         return
 
     def docker(*args: str) -> bool:
@@ -161,15 +219,90 @@ def _install_layout() -> None:
             return False
         return True
 
-    ok = (
-        docker("exec", CONTAINER, "mkdir", "-p", LAYOUT_DEST_DIR)
-        and docker("cp", str(LAYOUT_SRC), f"{CONTAINER}:{LAYOUT_DEST_DIR}/detail.json")
-        and docker("exec", CONTAINER, "chown", "-R", "www-data:www-data", LAYOUT_DEST_DIR)
-        # Layouts are cached; without this the panel does not appear until
-        # something else happens to invalidate the cache.
-        and docker("exec", CONTAINER, "php", "/var/www/html/clear_cache.php")
+    ok = True
+    for scope_dir in dirs:
+        dest = f"{LAYOUT_DEST_ROOT}/{scope_dir.name}"
+        files = sorted(scope_dir.glob("*.json"))
+        if not files:
+            continue
+        scope_ok = docker("exec", CONTAINER, "mkdir", "-p", dest)
+        for src in files:
+            scope_ok = scope_ok and docker("cp", str(src), f"{CONTAINER}:{dest}/{src.name}")
+        scope_ok = scope_ok and docker("exec", CONTAINER, "chown", "-R", "www-data:www-data", dest)
+        print(
+            f"layout    : {scope_dir.name} {', '.join(f.stem for f in files)}"
+            if scope_ok
+            else f"layout    : {scope_dir.name} FAILED"
+        )
+        ok = ok and scope_ok
+
+    # Layouts are cached; without this the panels do not appear until something
+    # else happens to invalidate the cache.
+    ok = docker("exec", CONTAINER, "php", "/var/www/html/clear_cache.php") and ok
+    if not ok:
+        print("layout    : one or more layouts failed to install")
+
+
+def _ensure_inventory(metadata: dict) -> None:
+    """Create the stock entity, its columns and its seed rows, idempotently.
+
+    Split from the Lead fields because it needs its own rebuild: the entity has
+    to exist in the schema before fields can be hung off it, and the fields
+    have to be in the database before a row can be written.
+    """
+    scopes = metadata.get("scopes", {})
+    if INVENTORY_SCOPE in scopes:
+        print(f"inventory : reusing {INVENTORY_SCOPE}")
+    else:
+        _request(
+            "POST",
+            "EntityManager/action/createEntity",
+            {
+                "name": INVENTORY_ENTITY,
+                "type": "Base",
+                "labelSingular": "Product",
+                "labelPlural": "Products",
+                "stream": False,
+                "disabled": False,
+            },
+        )
+        print(f"inventory : created {INVENTORY_SCOPE}")
+
+    existing = (
+        _request("GET", "Metadata").get("entityDefs", {}).get(INVENTORY_SCOPE, {}).get("fields", {})
     )
-    print("layout    : Lead detail panel installed" if ok else "layout    : install FAILED")
+    created_any = False
+    for field in INVENTORY_FIELDS:
+        if field["name"] in existing:
+            print(f"inventory : reusing {field['name']}")
+            continue
+        _request("POST", f"Admin/fieldManager/{INVENTORY_SCOPE}", field)
+        created_any = True
+        print(f"inventory : created {field['name']} ({field['type']})")
+
+    if created_any:
+        print("rebuild   : applying inventory schema...")
+        _request("POST", "Admin/rebuild")
+
+    # Seeded by SKU so re-running never duplicates, and so a stock figure
+    # someone has edited by hand is left exactly as they left it.
+    for product in SEED_PRODUCTS:
+        if _find_one(INVENTORY_SCOPE, "sku", product["sku"]):
+            print(f"inventory : reusing {product['sku']}")
+            continue
+        _request(
+            "POST",
+            INVENTORY_SCOPE,
+            {
+                "name": product["name"],
+                "sku": product["sku"],
+                "stockQty": product["stockQty"],
+                "priceUsd": product["priceUsd"],
+                "leadTimeDays": product["leadTimeDays"],
+                "status": "out_of_stock" if product["stockQty"] == 0 else "in_stock",
+            },
+        )
+        print(f"inventory : seeded {product['sku']} ({product['stockQty']} units)")
 
 
 def main() -> int:
@@ -180,13 +313,6 @@ def main() -> int:
         help="delete the existing API user first (the only way to get a new key)",
     )
     args = parser.parse_args()
-
-    role = _find_one("Role", "name", ROLE_NAME)
-    if role:
-        print(f"role      : reusing {ROLE_NAME} ({role['id']})")
-    else:
-        role = _request("POST", "Role", ROLE_DATA)
-        print(f"role      : created {ROLE_NAME} ({role['id']})")
 
     # There is no GET on Admin/fieldManager/{scope} - it 404s. The existing
     # field list has to come out of the metadata tree instead.
@@ -209,6 +335,19 @@ def main() -> int:
         _request("POST", "Admin/rebuild")
 
     _install_layout()
+    _ensure_inventory(metadata)
+
+    # After _ensure_inventory: a role that lists a scope Espo does not know
+    # yet is rejected with "Bad data. Scope CAriaProduct is not allowed."
+    role = _find_one("Role", "name", ROLE_NAME)
+    if role:
+        # `name` is omitted - Espo answers 400 when it is sent back on a PUT.
+        _request("PUT", f"Role/{role['id']}",
+                 {k: v for k, v in ROLE_DATA.items() if k != "name"})
+        print(f"role      : updated {ROLE_NAME} ({role['id']})")
+    else:
+        role = _request("POST", "Role", ROLE_DATA)
+        print(f"role      : created {ROLE_NAME} ({role['id']})")
 
     rep = _find_one("User", "userName", REP_USER_NAME)
     if rep:
