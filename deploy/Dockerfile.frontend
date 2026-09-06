@@ -20,6 +20,13 @@ ARG NEXT_PUBLIC_BACKEND_URL=""
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 RUN npm run build
 
+# This project has no public/ directory - nothing is served statically that
+# is not imported through the bundler. The runtime stage copies it anyway so
+# that adding one later needs no Dockerfile change, and COPY fails the build
+# on a missing source, so it is created empty here rather than made
+# conditional (which Dockerfile syntax cannot express).
+RUN mkdir -p /app/public
+
 FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
