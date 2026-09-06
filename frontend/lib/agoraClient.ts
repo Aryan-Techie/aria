@@ -14,7 +14,7 @@
  * SDK docs (or via Agora Skills / the Agora MCP doc server, per the plan)
  * during the first real test call, per the plan's Step 3 verification note.
  */
-import type { IAgoraRTCClient, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
+import type { IAgoraRTCClient, IMicrophoneAudioTrack, IRemoteAudioTrack } from "agora-rtc-sdk-ng";
 import type { StartCallResponse } from "./api";
 
 export interface TranscriptEvent {
@@ -111,6 +111,11 @@ export class AgoraCallClient {
   /** The uid we joined RTC with, so transcript items published under it can
    * be attributed to the customer rather than to Aria. */
   private localUid: string | null = null;
+  /** Every remote audio track currently playing, keyed by uid. Aria is the
+   * only remote publisher on a call, but the map keeps a re-published track
+   * (after a hold, or an agent restart) from leaking the old one. */
+  private remoteTracks = new Map<string, IRemoteAudioTrack>();
+  private onHold = false;
 
   async join(session: StartCallResponse, callbacks: CallCallbacks): Promise<void> {
     const { app_id: appId, channel_name: channelName, uid, rtc_token: rtcToken, rtm_token: rtmToken } = session;
@@ -132,9 +137,15 @@ export class AgoraCallClient {
 
     this.rtcClient.on("user-published", async (user, mediaType) => {
       await this.rtcClient!.subscribe(user, mediaType);
-      if (mediaType === "audio") {
-        user.audioTrack?.play();
+      if (mediaType === "audio" && user.audioTrack) {
+        this.remoteTracks.set(String(user.uid), user.audioTrack);
+        // A track that arrives while the operator has the call on hold stays
+        // silent until they take it off hold, rather than bursting in.
+        if (!this.onHold) user.audioTrack.play();
       }
+    });
+    this.rtcClient.on("user-unpublished", (user, mediaType) => {
+      if (mediaType === "audio") this.remoteTracks.delete(String(user.uid));
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -272,6 +283,52 @@ export class AgoraCallClient {
     this.rtmClient = null;
     this.micTrack = null;
     this.rtcClient = null;
+    this.remoteTracks.clear();
+    this.onHold = false;
+  }
+
+  /**
+   * Live audio levels, 0..1, straight off the RTC tracks - the orb on the
+   * console is driven by these rather than by a script, so it moves with the
+   * actual voices on the call. Agora's getVolumeLevel is cheap to poll once
+   * a frame.
+   */
+  getLevels(): { local: number; remote: number } {
+    let remote = 0;
+    this.remoteTracks.forEach((track) => {
+      try {
+        remote = Math.max(remote, track.getVolumeLevel());
+      } catch {
+        // track torn down between frames
+      }
+    });
+    let local = 0;
+    try {
+      local = this.micTrack?.getVolumeLevel() ?? 0;
+    } catch {
+      // mic already released
+    }
+    return { local, remote };
+  }
+
+  /**
+   * Hold is the console's "pause". The backend has no pause primitive (there
+   * is no way to freeze a turn that is already generating), so hold is done
+   * at the edges: the mic is muted so nothing new reaches the recogniser,
+   * and Aria's audio is stopped locally so the operator hears silence. She
+   * may finish the sentence she was on; it is not played.
+   */
+  async setHold(hold: boolean): Promise<void> {
+    this.onHold = hold;
+    await this.micTrack?.setMuted(hold);
+    this.remoteTracks.forEach((track) => {
+      try {
+        if (hold) track.stop();
+        else track.play();
+      } catch {
+        // track torn down between calls
+      }
+    });
   }
 
   async leave(): Promise<void> {

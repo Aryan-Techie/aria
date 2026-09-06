@@ -6,6 +6,8 @@ stores) so it's directly unit-testable without any LLM or network involved.
 """
 from datetime import datetime, timezone
 
+from app.config import get_settings
+
 from app.background import run_in_background
 from app.calendar import service as calendar_service
 from app.calendar.labels import slot_label as _slot_label
@@ -198,7 +200,22 @@ def _escalate_to_human(tool_input: dict, session, *, trigger_source: TriggerSour
     )
     session.status = "escalated"
     session.outcome = "escalated"
-    return {"escalation_id": record.id, "inbox_position": position}
+    # The link a person opens to step into this very call - see routes/rep.py.
+    # Served off the backend's public URL so it works from another city with
+    # nothing but the link.
+    settings = get_settings()
+    handoff_url = f"{settings.public_base_url}/rep/{record.id}"
+    # The link also goes out by email, in the background - a person in
+    # another city is not watching this console.
+    from app.notify import handoff as handoff_mail
+
+    run_in_background(handoff_mail.send_join_link, record, handoff_url)
+    return {
+        "escalation_id": record.id,
+        "inbox_position": position,
+        "handoff_url": handoff_url,
+        "rep_name": settings.handoff_rep_name,
+    }
 
 
 def _negotiate_deal(tool_input: dict, session, **_) -> dict:

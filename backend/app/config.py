@@ -94,6 +94,16 @@ class Settings(BaseSettings):
     # scripts/provision_crm.py.
     espocrm_assigned_user_id: str = ""
 
+    # The person a handoff goes to. Shown on the console, spoken by Aria as
+    # she hands over, and printed on the rep's join page (routes/rep.py).
+    handoff_rep_name: str = "Shipra"
+    # Emailed the join link the moment a call escalates. Blank sends none;
+    # the console's copy-link button still works either way.
+    handoff_rep_email: str = ""
+    # Fixed RTC uid the rep joins the customer's channel with. Distinct from
+    # the agent (1) and the browser (random, >= 100000).
+    handoff_rep_rtc_uid: int = 2
+
     # Confirmation email + calendar invite, sent when a meeting is booked.
     # Off by default and a no-op when off: the code path is reachable from a
     # live call, and a half-configured mail server should cost nothing rather

@@ -85,7 +85,7 @@ def test_each_layer_has_its_own_voice():
 
 def test_role_outranks_language():
     """The deal desk sounding like the deal desk is the point."""
-    assert director.resolve_voice(HINGLISH, role="deal_desk", language="en") == "hindi_male_1_v2"
+    assert director.resolve_voice(HINGLISH, role="solutions", language="en") == "hindi_male_1_v2"
 
 
 def test_only_the_two_real_second_layer_tools_change_the_voice():

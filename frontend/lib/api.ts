@@ -34,11 +34,74 @@ export interface SessionEventEnvelope {
   ts: string;
 }
 
+/** app/memory/schema.py::LeftBrain - the CRM-shaped facts. */
+export interface LeftBrain {
+  company?: string | null;
+  user_count?: number | null;
+  budget_range?: string | null;
+  timeline?: string | null;
+  pain_points?: string[];
+  decision_stage?: string | null;
+}
+
+export type Sentiment = "positive" | "neutral" | "skeptical" | "frustrated";
+
+export interface Objection {
+  topic: "pricing" | "trust" | "product";
+  raised_text: string;
+  resolution_text?: string | null;
+  resolved: boolean;
+  attempts: number;
+}
+
+/** app/memory/schema.py::RightBrain - the softer signals that drive the
+ * escalation guardrails. Only reachable through the poll; nothing publishes
+ * sentiment as an event of its own. */
+export interface RightBrain {
+  objections: Objection[];
+  sentiment: Sentiment;
+  sentiment_history: Sentiment[];
+  competitor_mentions: string[];
+}
+
 export interface SessionEventsResponse {
   events: SessionEventEnvelope[];
   cursor: number;
   status: string | null;
   outcome: string | null;
+  left_brain?: LeftBrain;
+  right_brain?: RightBrain;
+}
+
+/** app/handoff/models.py::CallSummary - the wrap-up the rep is sent. */
+export interface CallSummary {
+  session_id: string;
+  lead_id: string | null;
+  company: string | null;
+  contact: string | null;
+  outcome: string;
+  headline: string;
+  recommended_action: string;
+  urgency: "now" | "today" | "this_week" | "none";
+  facts: string[];
+  agreed: string[];
+  owed: string[];
+  risks: string[];
+  duration_seconds: number;
+  turn_count: number;
+  minutes_saved: number;
+}
+
+/**
+ * The wrap-up is written in the background after End Call returns (it costs
+ * a model call), so it is not there the instant the call ends. 404 until it
+ * is; the caller polls.
+ */
+export async function fetchSummary(sessionId: string): Promise<CallSummary | null> {
+  const res = await fetch(`${BACKEND_URL}/api/summaries/${sessionId}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to fetch summary: ${res.status}`);
+  return res.json();
 }
 
 /**

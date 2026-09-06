@@ -17,7 +17,9 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 from app.escalation.models import TranscriptTurn
+from app.language.profiles import strip_speech_markup
 from app.orchestrator import pipeline
+from app.rtm.publisher import default_rtm_publisher
 from app.sessions.store import session_store
 
 logger = logging.getLogger("aria")
@@ -73,6 +75,27 @@ def _history_from_openai_messages(messages: list[ChatMessage]) -> list[Transcrip
 NO_SPEECH_REPLY = "Sorry, I didn't quite catch that - could you say that again?"
 
 
+def _publish_turn(session_id: str, turn_id: str, role: str, text: str, final: bool) -> None:
+    """Puts one side of the conversation on the console's event stream.
+
+    The console reads the transcript from here rather than from Agora's own
+    transcript feed over RTM, which never reliably reached the page (same
+    story as the tool events - see rtm/publisher.py::SessionEventRecorder).
+    This route already sees every word: the user's turn arrives in the
+    request, Aria's leaves in the response. Speech markup is stripped so
+    the console shows what she says, not the pause tags the TTS reads.
+    """
+    default_rtm_publisher().publish(
+        session_id,
+        "transcript_turn",
+        {"turn_id": turn_id, "role": role, "text": strip_speech_markup(text), "final": final},
+    )
+
+
+def _latest_user_text(history: list[TranscriptTurn]) -> str:
+    return next((t.content for t in reversed(history) if t.role == "user"), "")
+
+
 def _sse_chunk(chunk_id: str, model: str, created: int, delta: dict, finish: str | None) -> str:
     payload = {
         "id": chunk_id,
@@ -97,28 +120,36 @@ def _stream_response(session_id: str, request: ChatCompletionsRequest) -> Stream
     chunk_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
     created = int(time.time())
     model = request.model or "aria-orchestrator"
+    turn_id = chunk_id
+    user_text = _latest_user_text(history)
 
     def generate() -> Iterator[str]:
         yield _sse_chunk(chunk_id, model, created, {"role": "assistant", "content": ""}, None)
+        if user_text:
+            _publish_turn(session_id, turn_id, "user", user_text, True)
+        spoken: list[str] = []
         try:
             if not history:
+                spoken.append(NO_SPEECH_REPLY)
                 yield _sse_chunk(chunk_id, model, created, {"content": NO_SPEECH_REPLY}, None)
             else:
                 for delta in pipeline.run_turn_stream(session, history):
                     if delta:
+                        spoken.append(delta)
+                        _publish_turn(session_id, turn_id, "assistant", "".join(spoken), False)
                         yield _sse_chunk(chunk_id, model, created, {"content": delta}, None)
         except Exception:
             # A crash mid-stream would otherwise drop the SSE connection with no
             # terminator, leaving Agora to time out and speak its failure_message.
             # Better to apologise in-character and keep the call alive.
             logger.exception("streamed turn failed, session=%s", session_id)
-            yield _sse_chunk(
-                chunk_id, model, created,
-                {"content": " Sorry, I lost my train of thought there - could you say that again?"},
-                None,
-            )
+            apology = " Sorry, I lost my train of thought there - could you say that again?"
+            spoken.append(apology)
+            yield _sse_chunk(chunk_id, model, created, {"content": apology}, None)
         finally:
             session_store.save(session)
+            if spoken:
+                _publish_turn(session_id, turn_id, "assistant", "".join(spoken), True)
         yield _sse_chunk(chunk_id, model, created, {}, "stop")
         yield "data: [DONE]\n\n"
 
@@ -153,8 +184,14 @@ def chat_completions(
         reply_text = pipeline.run_turn(session, history)
     session_store.save(session)
 
+    turn_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+    user_text = _latest_user_text(history)
+    if user_text:
+        _publish_turn(session_id, turn_id, "user", user_text, True)
+    _publish_turn(session_id, turn_id, "assistant", reply_text, True)
+
     return {
-        "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
+        "id": turn_id,
         "object": "chat.completion",
         "created": int(time.time()),
         "model": request.model or "aria-orchestrator",

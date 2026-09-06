@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 
+from app.config import get_settings
 from app.crm.espo_client import EspoClient, EspoCRMError
 from app.crm.models import Lead
 
@@ -69,6 +70,12 @@ def _to_espo(lead: Lead) -> dict:
         "status": _STATUS_TO_ESPO.get(lead.status, "New"),
         _CUSTOM["session_id"]: lead.session_id,
     }
+    # An unassigned lead is invisible on the rep's Espo dashboard ("My
+    # Leads" and the stream filter on assignedUser), so every lead Aria
+    # writes is handed to the same user the meetings are booked under.
+    assigned = get_settings().espocrm_assigned_user_id
+    if assigned:
+        payload["assignedUserId"] = assigned
     if lead.company:
         payload["accountName"] = lead.company
     if lead.email:

@@ -1,71 +1,72 @@
-# Design system — Aria Call Console
-
-<!-- impeccable:design-schema 1 -->
-<!-- Authored directly from the built result (not by the native impeccable-documenter
-     subagent — unavailable in this mid-session skill install; disclosed per the
-     skill's own substitution rule). -->
+# Design system — Aria Console
 
 ## World
 
-A recording-studio mixing console. The call is a live session; every action Aria
-takes prints onto a session timeline like an automation move on a DAW track.
-Single-theme, dark-only, by deliberate choice — a mixing desk is a dim-room
-instrument, and this console is used screen-shared during demos.
+A voice, not a dashboard. One orb moves with whoever is speaking; the conversation runs
+beneath it; a sheet on the right holds everything Aria knows about the call so far; and
+when the call ends the transcript gives way to the brief the rep is sent. Light by
+default, dark on request (system preference, then the toggle, remembered in
+`localStorage`). Built to be read across a room during a screen-shared demo, and up
+close by the operator who has to approve a discount mid-call.
 
-Direction: impeccable concept-seed, scope `direction`, mode `operate`, seed key
-`57721061`, assigned index 3 of 7 grounded candidates. Raised by two declined
-catalog challengers: depth/prominence as a state signal, and physical-feeling
-digit readouts for numeric fields.
+The standalone mock this was ported from lives at `../mock/aria-console.html` and runs a
+scripted demo call with no backend.
 
 ## Color
 
-One commanded accent only — everything else is neutral or semantic.
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--bg` | `#f5f5f7` | `#000` | page ground |
+| `--surface` / `--surface-2` | `#fff` / `#f2f2f4` | `#151517` / `#1f1f22` | cards, chips, tracks |
+| `--ink` / `--ink-2` / `--ink-3` | `#1d1d1f` / `#6e6e73` / `#aeaeb2` | `#f5f5f7` / `#98989d` / `#5c5c61` | primary / secondary / tertiary text |
+| `--aria` | `#5e5ce6` | `#7d7aff` | Aria's colour: her orb, her turn marker, the deal track |
+| `--you` | `#ff9f0a` | `#ffb340` | the customer's colour: their orb, their turn marker |
+| `--good` / `--warn` / `--bad` | Apple system green / orange / red | brighter dark variants | outcome, guardrail and sentiment states |
 
-| Token | Value | Use |
-|---|---|---|
-| `--chassis` | `#17130f` | page ground — warm near-black console body |
-| `--chassis-raised` | `#211b15` | rail panel surfaces |
-| `--chassis-inset` | `#100d0a` | recessed instrument wells (readouts, track, patch cells) |
-| `--edge` | `#3a3128` | hairline separators |
-| `--text` | `#f3ece1` | primary ivory (console backlighting) |
-| `--text-dim` | `#a89a86` | secondary text |
-| `--text-faint` | `#8f8067` | tertiary/placeholder text — tuned to 5:1+ against both chassis and inset surfaces |
-| `--live` | `#ff3b2f` | the one accent — on-air/rec red. All live/primary-action meaning lives here. |
-| `--meter-green` / `-dim` | `#5fd964` / `#4a8058` | VU-meter healthy zone (dim = resting/idle state, tuned to 4:1+, not decorative-invisible) |
-| `--meter-amber` | `#f0a83c` | VU-meter caution zone |
-| `--meter-red` | `#ff3b2f` | VU-meter clip zone — same value as `--live`, deliberately: live and clipping/alarm share one real-world red |
-
-Never introduce a second saturated accent. New semantic states reuse the green/amber/red zone vocabulary already established by the alarm meter.
+Aria is the cool half of the wheel and the customer the warm half, so who is speaking
+reads from the orb alone. Semantic colours never appear as large fills; they tint pills,
+dots and borders.
 
 ## Type
 
-- **Archivo** — all UI text: labels, body, headings. A workhorse grotesque, not a trend face; chosen for its genuine condensed/expanded family (channel-strip lettering).
-- **JetBrains Mono** — strictly digits, timestamps, and instrument readouts (elapsed timer, patch-bay values, event timestamps). Never used as a "technical" costume on prose.
-
-Panel labels: 10px, weight 700, `letter-spacing: 0.1em–0.12em`, uppercase, `--text-faint`. Never floated above a heading as a kicker/eyebrow — that pattern is banned outright in this system, not just avoided.
+- System font first (`-apple-system`, SF Pro), **Inter** shipped as the fallback for
+  Windows. Body tracking `0`; small caps labels `+0.06em`; headings tighten as they grow
+  (`-0.02em` at 22px, `-0.03em` at 26px).
+- **Instrument Serif** for exactly one thing: the brief's headline, the one line written
+  for a person rather than read off a record. Keep it there and nowhere else.
+- Tabular numerals wherever a number can change under the reader (timer, devices,
+  percentages, milliseconds).
 
 ## Components
 
-- **`.lamp` / `.lamp-housing`** — the LIVE indicator. Off-state is `--live-dim`, not gray — a red lamp is red glass whether lit or not. `on` adds glow + a slow pulse (disabled under `prefers-reduced-motion`).
-- **`.readout`** — an inset instrument well with a large mono value + a small caps label below. Used for elapsed time and the resolved outcome.
-- **`.switch`** — transport buttons. Hardware-styled (inset/outset shadow on press), never a flat SaaS button. `.switch.live` is the sole place a button carries the accent border.
-- **`.track` / `.event`** — the session timeline. A vertically-scrolling instrument well with a repeating vertical-rule background (tape/reel texture). Each event prints in with a one-shot flash-to-transparent keyframe (`print-in`), never a slide/fade template repeated identically everywhere.
-- **`.patch-cell`** — qualification fields as instrument tiles, 2-column grid. Explicitly not a card grid: no icon, no nested shadow-card look, flat inset wells only.
-- **`.deal`** — the deal-desk fader. The one panel where the console metaphor is load-bearing rather than decorative: a discount behaves exactly like a fader with physical travel stops. It moves one way only, each move is smaller than the last, and it stops where authority stops — green tick at Aria's 3%, amber at the desk's 10%, and a glowing accent cap at the ceiling actually in force, which only a human signature moves. The three marks are the same three numbers the backend enforces (`app/deal/policy.py`), so a clamped offer reads as a fader hitting a stop rather than as a message saying it did. `awaiting` borders the whole panel amber while a human signature is outstanding.
-- **`.alarm`** — the escalation channel. A 12-segment meter bar (green → amber → red zones) that's visibly present at rest and clips fully red when `tripped`.
+- **Orb** (`components/Orb.tsx`) — canvas: three drifting gradient blobs plus a 72-bar
+  halo. Amplitude is the real RTC volume of whichever side is speaking
+  (`AgoraCallClient.getLevels`), with a small synthetic breath so it is never dead still.
+  Palettes cross-fade between idle / Aria / you / thinking / hold / ended.
+- **Transcript** — no bubbles. A tiny role label and 17px text. Tool calls print inline
+  as pills with their round trip; system moments (approval asked, meeting booked, handoff)
+  print as tinted notes in the flow.
+- **Sheet cards** — Lead (devices count tweens), Signals (sentiment history bars,
+  competitors, objections with attempts), Deal (track with the 3 / 10 / 18 stops from
+  `app/deal/policy.py`, round list, approve control), Handoff (the three guardrails from
+  `app/escalation/triggers.py` shown with their progress, turns red when one trips),
+  Activity (every tool with ms, slow ones amber, running rep-minutes).
+- **Brief** — the shape of `CallSummary`. Facts assemble client-side immediately from the
+  same records; the serif headline waits for the backend's wrap-up and breathes until it
+  lands.
+- **Controls** — Start / Mute / Hold / End. Hold has no backend primitive: it mutes the
+  mic and stops Aria's audio locally (`setHold`). Feedback is on the press (`:active`
+  scale), never only on release.
 
-## Refused (do not reintroduce)
+## Motion
 
-No cards-as-page-structure, no kicker/eyebrow above headings, no gradient text, no colored `border-left` accents, no emoji/unicode standing in for icons, no rounded-corner soft-shadow tiles. `border-radius` is capped at `3px` (`--radius`) everywhere — this is a hardware panel, not a consumer app.
+Cross-fades and short rises with `cubic-bezier(.2,.8,.2,1)`; nothing snaps. Layout
+transitions (`grid-template-columns`, orb height) run 600ms. `prefers-reduced-motion`
+collapses every transition and animation to a cut; `prefers-reduced-transparency`
+solidifies the top bar; `prefers-contrast: more` strengthens hairlines and tertiary text.
 
-## Verified
+## Refused
 
-- `npx tsc --noEmit` clean; `next build` clean.
-- Contrast checked by computation, not eye: `--text-faint` on both chassis surfaces ≥4.8:1, `--meter-green-dim` resting baseline ≥4:1 (an earlier pass at `#6b5f4f`/`#1c3020` measured 3.11:1 and 1.38:1 respectively — both fixed before shipping).
-- `node scripts/detect.mjs` (impeccable's 59-rule anti-pattern scanner): zero findings.
-- Desktop (1440×900) and mobile (390×844) screenshots inspected; mobile collapses the three-rail desk into a stacked column with the transport rail as a wrapping top bar.
-- Real interaction tested: Start Call → connecting → clean error surfaced in the timeline (`Failed to start call: 500`, expected with no Agora credentials configured) → reverts to standby. No silent failure.
-
-## Open / substituted
-
-No native `impeccable-finish-reviewer` subjective critique pass ran — the subagent isn't registered in this session (the skill was installed mid-session, not at harness start). The mechanical detector, contrast computation, and manual desktop/mobile inspection above stand in for it.
+No chat bubbles, no card-per-stat dashboards, no colour used as decoration, no second
+serif, no fixed letter-spacing across sizes, no spinner where the data can be shown
+instead.

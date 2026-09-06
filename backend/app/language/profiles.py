@@ -168,8 +168,12 @@ HINDI = LanguageProfile(
         "aria": "hindi_female_1_v2",
         # MiniMax labels this one "Trustworthy Advisor", which is the deal
         # desk's job description.
-        "deal_desk": "hindi_male_1_v2",
-        "solutions": "hindi_female_2_v1",
+        # One Hindi male voice is all MiniMax offers under managed mode, and
+        # it goes to the solutions engineer: on the demo call that is the
+        # handoff that needs to land as a different person. The deal desk
+        # gets the second female voice.
+        "deal_desk": "hindi_female_2_v1",
+        "solutions": "hindi_male_1_v2",
     },
     sarvam_speaker="priya",
     sarvam_language_code="hi-IN",
@@ -222,8 +226,12 @@ HINGLISH = LanguageProfile(
     },
     agent_voices={
         "aria": "hindi_female_1_v2",
-        "deal_desk": "hindi_male_1_v2",
-        "solutions": "hindi_female_2_v1",
+        # One Hindi male voice is all MiniMax offers under managed mode, and
+        # it goes to the solutions engineer: on the demo call that is the
+        # handoff that needs to land as a different person. The deal desk
+        # gets the second female voice.
+        "deal_desk": "hindi_female_2_v1",
+        "solutions": "hindi_male_1_v2",
     },
     # Pinned for the whole call, same as voice_id above: Sarvam has no
     # per-utterance "auto" language mode to match MiniMax's language_boost, so
