@@ -690,12 +690,30 @@ html[data-theme="dark"] .action {
   display: flex;
   justify-content: space-between;
 }
-.arc svg {
-  width: 100%;
+/* The line and its dots share one coordinate space but not one element -
+   see the comment in Brief.tsx. The svg stretches; the dots must not. */
+.arc .plot {
+  position: relative;
   height: 64px;
-  display: block;
   margin-top: 6px;
-  overflow: visible;
+}
+.arc .plot svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Was `visible`, which let a dot sitting at x=0 spill out past the card's
+     rounded corner. Nothing should paint outside the plot. */
+  overflow: hidden;
+}
+.arc .plot .node {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.2px solid var(--ink-2);
+  pointer-events: none;
 }
 .sum-foot {
   display: flex;

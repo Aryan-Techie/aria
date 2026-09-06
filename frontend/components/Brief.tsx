@@ -88,8 +88,23 @@ export function Brief({
     ].filter((x): x is string => Boolean(x));
 
   const history: Sentiment[] = brain?.sentiment_history?.length ? brain.sentiment_history : ["neutral"];
-  const points = history.map((s, i) => [(i / Math.max(1, history.length - 1)) * 100, MOOD_Y[s]] as const);
-  const path = points.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1]}`).join(" ");
+  // Inset from the edges rather than spanning 0-100: the dots are drawn
+  // centred on their coordinate, so a reading at x=0 would hang half of
+  // itself outside the card.
+  const X0 = 4;
+  const X1 = 96;
+  // One reading is the common case - a call where the mood never shifted.
+  // Spanning it 0..100 put the single dot hard against the left edge with
+  // a path of just "M0 30", which is a moveto and draws no line at all: the
+  // card showed one stray mark and nothing else. A flat line across, dot
+  // centred, is what "steady the whole way" actually looks like.
+  const steady = history.length === 1;
+  const points = history.map(
+    (s, i) => [steady ? 50 : X0 + (i / (history.length - 1)) * (X1 - X0), MOOD_Y[s]] as const
+  );
+  const path = steady
+    ? `M${X0} ${points[0][1]} L${X1} ${points[0][1]}`
+    : points.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1]}`).join(" ");
   const mood = history[history.length - 1];
 
   const duration = summary?.duration_seconds || durationSeconds;
@@ -175,19 +190,40 @@ export function Brief({
           <span>How it felt, start to finish</span>
           <span className={`m-${mood} strong`}>{mood}</span>
         </div>
-        <svg viewBox="0 0 100 68" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="moodGradient" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stopColor="#34c759" />
-              <stop offset=".5" stopColor="#ff9f0a" />
-              <stop offset="1" stopColor="#ff3b30" />
-            </linearGradient>
-          </defs>
-          <path d={path} fill="none" stroke="url(#moodGradient)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {/* The line is stretched to the card's width on purpose - it is a
+            trend, and the x axis is "the call", not a measured quantity.
+            The dots are NOT in the svg for that reason: preserveAspectRatio
+            ="none" scales x about twelve times more than y at this size, so
+            an SVG <circle> came out as a flat wide ellipse. They are HTML,
+            positioned over the same coordinates, and so stay round at every
+            width. */}
+        <div className="plot">
+          <svg viewBox={`0 0 100 68`} preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              {/* userSpaceOnUse, not the default objectBoundingBox: a call
+                  whose mood never changed draws a perfectly flat line, whose
+                  bounding box is zero pixels high, which collapses a vertical
+                  bounding-box gradient and paints nothing at all. Tying the
+                  stops to the viewBox instead also means green always sits at
+                  "positive" and red at "frustrated", rather than the ramp
+                  being restretched over whatever range this particular call
+                  happened to cover. */}
+              <linearGradient id="moodGradient" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="68">
+                <stop offset="0" stopColor="#34c759" />
+                <stop offset=".5" stopColor="#ff9f0a" />
+                <stop offset="1" stopColor="#ff3b30" />
+              </linearGradient>
+            </defs>
+            <path d={path} fill="none" stroke="url(#moodGradient)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
           {points.map((p, i) => (
-            <circle key={i} cx={p[0]} cy={p[1]} r="3" fill="var(--surface)" stroke="var(--ink-2)" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+            <span
+              key={i}
+              className="node"
+              style={{ left: `${p[0]}%`, top: `${(p[1] / 68) * 100}%` }}
+            />
           ))}
-        </svg>
+        </div>
       </div>
 
       <div className="sum-foot">
