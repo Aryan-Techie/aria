@@ -2,7 +2,7 @@
 
 <img src="assets/aria-logo.png" width="88" height="88" alt="Aria logo">
 
-# Aria
+# ARIA
 
 **A real-time voice AI that sells like a real salesperson — not a phone tree.**
 
