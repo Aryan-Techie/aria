@@ -33,3 +33,9 @@ Thumbs.db
 # run.bat picks it up from here if it is not on PATH.
 cloudflared.exe
 cloudflared
+
+# Runtime logs from run.bat - regenerated on every start.
+*.log
+
+# Local design-hook tooling state, not project code.
+.impeccable/
