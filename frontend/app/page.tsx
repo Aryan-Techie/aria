@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Logo } from "@/components/Logo";
 import { Orb, type Phase, type Speaker } from "@/components/Orb";
 import { Transcript, type FeedItem } from "@/components/Transcript";
 import { LeadCard } from "@/components/LeadCard";
@@ -446,7 +447,7 @@ export default function Home() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <span className="mark" aria-hidden="true" />
+          <Logo size={24} />
           <span>Aria</span>
           <span className="sub">Console</span>
         </div>

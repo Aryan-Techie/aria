@@ -34,6 +34,10 @@
   --bad: #ff3b30;
   --bad-soft: rgba(255, 59, 48, 0.12);
   --info: #0a84ff;
+  /* The brand mark's two inks. The body flips with the theme so the logo sits
+     on the ground rather than in a box; the blue is fixed in both. */
+  --logo-ink: #1a1b1f;
+  --logo-accent: #469cfe;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px -12px rgba(0, 0, 0, 0.12);
   --glass: rgba(245, 245, 247, 0.72);
   --r: 18px;
@@ -62,6 +66,7 @@ html[data-theme="dark"] {
   --warn: #ffd60a;
   --warn-ink: #ffd60a;
   --bad: #ff453a;
+  --logo-ink: #e5e4e0;
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.8);
   --glass: rgba(0, 0, 0, 0.6);
   color-scheme: dark;
@@ -149,10 +154,8 @@ input {
   letter-spacing: -0.01em;
 }
 .brand .mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: conic-gradient(from 200deg, var(--aria), #64d2ff, #bf5af2, var(--aria));
+  display: block;
+  flex: none;
 }
 .brand .sub {
   color: var(--ink-3);
