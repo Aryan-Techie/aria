@@ -43,3 +43,6 @@ cloudflared
 
 # Local design-hook tooling state, not project code.
 .impeccable/
+
+# Personal editor/agent tool config, not project code.
+frontend/.codex/

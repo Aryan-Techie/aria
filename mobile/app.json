@@ -48,7 +48,8 @@
           },
           "imageWidth": 96
         }
-      ]
+      ],
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,
