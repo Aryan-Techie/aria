@@ -102,8 +102,19 @@ TOOLS: list[dict] = [
                     "type": "string",
                     "description": "The name of the person on the call, e.g. 'Priya'.",
                 },
+                "title": {
+                    "type": "string",
+                    "description": "Their job title or role, e.g. 'IT Director' — how much weight their decision carries.",
+                },
+                "industry": {
+                    "type": "string",
+                    "description": "The customer's industry/vertical, e.g. 'Logistics' or 'Healthcare', if it comes up naturally.",
+                },
                 "email": {"type": "string", "description": "Their email address, if given."},
-                "phone": {"type": "string", "description": "Their phone number, if given."},
+                "phone": {
+                    "type": "string",
+                    "description": "Their phone number - a backup contact if email bounces or the line drops.",
+                },
             },
         },
     },
@@ -137,6 +148,50 @@ TOOLS: list[dict] = [
             "type": "object",
             "properties": {"slot_id": {"type": "string"}},
             "required": ["slot_id"],
+        },
+    },
+    {
+        "name": "calendar_reschedule_meeting",
+        "description": (
+            "Move the meeting already booked on this call to a different slot_id "
+            "(from calendar_check_availability). Cancels the old time and books the "
+            "new one in a single step - never tell the customer it's moved without "
+            "calling this."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"new_slot_id": {"type": "string"}},
+            "required": ["new_slot_id"],
+        },
+    },
+    {
+        "name": "calendar_cancel_meeting",
+        "description": (
+            "Cancel the meeting already booked on this call. Use when the customer "
+            "explicitly wants to call it off rather than move it - for moving to a "
+            "new time, use calendar_reschedule_meeting instead."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "schedule_followup",
+        "description": (
+            "Log a follow-up task for the rep for something that isn't a meeting - "
+            "'call back after they've talked to their CFO', 'send the case study "
+            "Thursday', 'check in once they've evaluated internally'. Use this "
+            "instead of just saying you'll make a note, so it actually lands "
+            "somewhere a rep will see it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note": {"type": "string", "description": "What the rep needs to do, in one sentence."},
+                "due": {
+                    "type": "string",
+                    "description": "When, if they gave a timeframe, e.g. 'next Thursday' or 'in two weeks'. Optional.",
+                },
+            },
+            "required": ["note"],
         },
     },
     {

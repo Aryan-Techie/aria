@@ -58,8 +58,15 @@ def _render_call_state(session: SessionState) -> str:
     sections: list[str] = []
 
     facts: list[str] = []
+    if left.name:
+        facts.append(f"Speaking with: {left.name}" + (f", {left.title}" if left.title else ""))
     if left.company:
         facts.append(f"Company: {left.company}")
+    if left.industry:
+        facts.append(f"Industry: {left.industry}")
+    if left.email or left.phone:
+        contact = " / ".join(c for c in (left.email, left.phone) if c)
+        facts.append(f"Contact on file: {contact}")
     if left.user_count is not None:
         facts.append(f"Devices/users needed: {left.user_count}")
     if left.budget_range:
@@ -203,7 +210,14 @@ def _execute_tool_calls(
         publisher.publish(
             session.session_id,
             "tool_call_finished",
-            {"tool_name": call.name, "result_summary": json.dumps(result, default=str)[:300]},
+            {
+                "tool_name": call.name,
+                "result_summary": json.dumps(result, default=str)[:300],
+                # Real value behind the "low-confidence answer" guardrail
+                # (app/escalation/triggers.py) - was previously invisible on
+                # the console, which hardcoded the guard meter to 0.
+                "rag_score": session.last_rag_score,
+            },
         )
 
         if call.name == "escalate_to_human":
@@ -231,6 +245,17 @@ def _execute_tool_calls(
                     "clamped": offer.clamped if offer else False,
                     "clamp_reason": offer.clamp_reason if offer else None,
                     "asked_in_return": result.get("ask_for_in_return", []),
+                    # The rest of what the desk actually produced - the priced
+                    # quote, its own reasoning, and every non-discount lever -
+                    # so the console can show the whole round, not a 7-field
+                    # summary of it.
+                    "price_summary": offer.price_summary if offer else "",
+                    "rationale": offer.rationale if offer else "",
+                    "quote": offer.quote.model_dump(mode="json") if offer else None,
+                    "concessions": [c.model_dump(mode="json") for c in offer.concessions] if offer else [],
+                    "commitments": [c.model_dump(mode="json") for c in offer.commitments] if offer else [],
+                    "requires_human": offer.requires_human if offer else False,
+                    "declined": offer.declined if offer else False,
                 },
             )
             if result.get("awaiting_human_approval"):

@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.background import run_in_background
 from app.calendar import service as calendar_service
 from app.calendar.labels import slot_label as _slot_label
-from app.calendar.models import SlotTakenError
+from app.calendar.models import BookingNotFoundError, SlotTakenError
 from app.crm import service as crm_service
 from app.deal import desk, engine, policy
 from app.escalation import service as escalation_service, triggers
@@ -22,6 +22,7 @@ from app.memory.schema import Objection
 from app.notify import service as notify_service
 from app.rag import retriever
 from app.specialists import solutions
+from app.tasks import service as tasks_service
 
 
 def _dt(value: str | None) -> datetime | None:
@@ -116,21 +117,20 @@ def _crm_upsert_lead(tool_input: dict, session, **_) -> dict:
         pain_points=tool_input.get("pain_points"),
         decision_stage=tool_input.get("decision_stage"),
         name=tool_input.get("name"),
+        title=tool_input.get("title"),
+        industry=tool_input.get("industry"),
         email=tool_input.get("email"),
         phone=tool_input.get("phone"),
     )
     session.crm_lead_id = lead.id
-    for field in ("company", "user_count", "budget_range", "timeline", "decision_stage"):
-        value = getattr(lead, field)
-        if value is not None:
-            setattr(session.left_brain, field, value)
-    session.left_brain.pain_points = lead.pain_points
+    crm_service.sync_left_brain(session, lead)
     return {"lead_id": lead.id, "lead": lead.model_dump(mode="json")}
 
 
 def _crm_qualify_lead(tool_input: dict, session, **_) -> dict:
     lead = crm_service.qualify_lead(session.session_id, tool_input["status"], tool_input["reason"])
     session.crm_lead_id = lead.id
+    session.left_brain.status = lead.status
     if tool_input["status"] in ("qualified", "disqualified"):
         session.outcome = tool_input["status"]
     return {"lead_id": lead.id, "status": lead.status}
@@ -190,6 +190,52 @@ def _calendar_book_meeting(tool_input: dict, session, **_) -> dict:
     return {"booking_id": booking.id, "slot": slot.model_dump(mode="json") if slot else None}
 
 
+def _calendar_reschedule_meeting(tool_input: dict, session, **_) -> dict:
+    if session.booking_id is None:
+        return {"error": "No meeting is currently booked on this call."}
+
+    lead_id = session.crm_lead_id or session.session_id
+    try:
+        booking = calendar_service.reschedule(
+            session.booking_id, tool_input["new_slot_id"], lead_id, session.session_id
+        )
+    except (SlotTakenError, ValueError, BookingNotFoundError) as exc:
+        return {"error": str(exc)}
+
+    session.booking_id = booking.id
+    session.booking_slot_id = tool_input["new_slot_id"]
+    slot = calendar_service.calendar_store.get_slot(tool_input["new_slot_id"])
+    if slot is not None:
+        run_in_background(notify_service.on_booking, session, slot)
+    return {"booking_id": booking.id, "slot": slot.model_dump(mode="json") if slot else None}
+
+
+def _calendar_cancel_meeting(tool_input: dict, session, **_) -> dict:
+    if session.booking_id is None:
+        return {"error": "No meeting is currently booked on this call."}
+
+    try:
+        calendar_service.cancel(session.booking_id)
+    except BookingNotFoundError as exc:
+        return {"error": str(exc)}
+
+    session.booking_id = None
+    session.booking_slot_id = None
+    if session.outcome == "meeting_booked":
+        session.outcome = None
+    return {"cancelled": True}
+
+
+def _schedule_followup(tool_input: dict, session, **_) -> dict:
+    task = tasks_service.create_task(
+        session.session_id,
+        tool_input["note"],
+        lead_id=session.crm_lead_id,
+        due=tool_input.get("due"),
+    )
+    return {"task_id": task.id}
+
+
 def _escalate_to_human(tool_input: dict, session, *, trigger_source: TriggerSource, **_) -> dict:
     record, position = escalation_service.escalate(
         session.session_id,
@@ -217,6 +263,8 @@ def _escalate_to_human(tool_input: dict, session, *, trigger_source: TriggerSour
         "inbox_position": position,
         "handoff_url": handoff_url,
         "rep_name": settings.handoff_rep_name,
+        "reason": record.reason,
+        "brief": record.brief.model_dump(mode="json"),
     }
 
 
@@ -519,6 +567,9 @@ _HANDLERS = {
     "crm_qualify_lead": _crm_qualify_lead,
     "calendar_check_availability": _calendar_check_availability,
     "calendar_book_meeting": _calendar_book_meeting,
+    "calendar_reschedule_meeting": _calendar_reschedule_meeting,
+    "calendar_cancel_meeting": _calendar_cancel_meeting,
+    "schedule_followup": _schedule_followup,
     "negotiate_deal": _negotiate_deal,
     "escalate_to_human": _escalate_to_human,
     "log_objection": _log_objection,

@@ -9,19 +9,25 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.crm.models import DecisionStage
+from app.crm.models import DecisionStage, LeadStatus
 
 Sentiment = Literal["positive", "neutral", "skeptical", "frustrated"]
 ObjectionTopic = Literal["pricing", "trust", "product"]
 
 
 class LeftBrain(BaseModel):
+    name: str | None = None
+    title: str | None = None
     company: str | None = None
+    industry: str | None = None
+    email: str | None = None
+    phone: str | None = None
     user_count: int | None = None
     budget_range: str | None = None
     timeline: str | None = None
     pain_points: list[str] = Field(default_factory=list)
     decision_stage: DecisionStage | None = None
+    status: LeadStatus | None = None
 
 
 class Objection(BaseModel):
