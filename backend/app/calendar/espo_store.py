@@ -91,7 +91,10 @@ class EspoCalendarStore:
         busy: set[datetime] = set()
         for meeting in meetings:
             raw = meeting.get("dateStart")
-            if not raw:
+            # "Not Held" is what cancel_booking() sets - excluding it here is
+            # what actually frees the slot back up, since there is no open-
+            # slot row to un-flip the way the in-memory store has.
+            if not raw or meeting.get("status") == "Not Held":
                 continue
             try:
                 busy.add(from_espo_datetime(raw))
@@ -152,6 +155,29 @@ class EspoCalendarStore:
             record = self._client.create(_ENTITY, payload)
 
         return booking.model_copy(update={"id": record["id"]})
+
+    def get_booking(self, booking_id: str) -> Booking | None:
+        try:
+            record = self._client.get(_ENTITY, booking_id)
+        except EspoCRMError:
+            return None
+        if not record:
+            return None
+        return Booking(
+            id=record["id"],
+            slot_id=slot_id_for(from_espo_datetime(record["dateStart"])),
+            lead_id=record.get("parentId") or "",
+            session_id="",
+            cancelled_at=datetime.now(timezone.utc) if record.get("status") == "Not Held" else None,
+        )
+
+    def cancel_booking(self, booking_id: str) -> Booking | None:
+        try:
+            self._client.update(_ENTITY, booking_id, {"status": "Not Held"})
+        except EspoCRMError as exc:
+            logger.warning("Meeting cancel failed for %s: %s", booking_id, exc)
+            return None
+        return self.get_booking(booking_id)
 
     def reset(self) -> None:
         """No-op: see EspoLeadStore.reset - wiping a real calendar is not the

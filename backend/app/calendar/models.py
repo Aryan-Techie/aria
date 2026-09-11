@@ -17,7 +17,12 @@ class Booking(BaseModel):
     lead_id: str
     session_id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    cancelled_at: datetime | None = None
 
 
 class SlotTakenError(Exception):
+    pass
+
+
+class BookingNotFoundError(Exception):
     pass

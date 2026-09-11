@@ -17,7 +17,9 @@ class Lead(BaseModel):
     session_id: str | None = None
 
     name: str | None = None
+    title: str | None = None
     company: str | None = None
+    industry: str | None = None
     email: str | None = None
     phone: str | None = None
 

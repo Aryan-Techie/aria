@@ -10,7 +10,9 @@ from datetime import datetime, timedelta, timezone
 from app.calendar.models import Slot
 from app.config import Settings
 from app.crm import service as crm_service
-from app.notify import ics, service as notify_service
+from app.escalation.models import EscalationBrief, EscalationRecord
+from app.memory.schema import LeftBrain, RightBrain
+from app.notify import handoff as notify_handoff, ics, service as notify_service
 from app.sessions.models import SessionState
 from app.sessions.store import SessionStore
 
@@ -137,7 +139,7 @@ def test_confirmation_carries_both_inline_invite_and_attachment():
     assert inline.get_param("method") == "REQUEST"
     # The subject reuses calendar.labels.slot_label, so the customer reads the
     # same phrase she spoke on the call.
-    assert message["Subject"] == "Confirmed: your Apple Business demo, Wednesday 2 September at 10:00 AM"
+    assert message["Subject"] == "Confirmed: your Apple Sales demo, Wednesday 2 September at 10:00 AM"
     assert "priya@boltframe.io" in message["To"]
     assert "Dana Whitfield" in message.get_body(("plain",)).get_content()
 
@@ -231,6 +233,62 @@ def test_call_end_hook_survives_an_unresolvable_slot():
     session, store = _session_with_lead()
     session.booking_slot_id = "slot-that-does-not-exist"
     assert notify_service.on_call_end(session, store=store) is False
+
+
+def test_recap_omits_fleet_size_for_a_single_device():
+    session, store = _session_with_lead()
+    session.left_brain.user_count = 1
+    send = Recorder()
+
+    notify_service.send_booking_confirmation(
+        session,
+        _slot(),
+        source="call_end",
+        include_recap=True,
+        settings=_settings(),
+        store=store,
+        send=send,
+    )
+    body = send.messages[0].get_body(("plain",)).get_content()
+    assert "Fleet size" not in body
+
+
+# --- handoff join-link email (individual buyer) ---------------------------
+
+
+def _escalation_record(**left_brain_overrides) -> EscalationRecord:
+    return EscalationRecord(
+        session_id="sess-handoff",
+        reason="customer asked for a human",
+        trigger_source="llm",
+        brief=EscalationBrief(
+            issue="pricing",
+            blocker="wants a firmer number",
+            sentiment="neutral",
+            recommended_action="confirm the discount",
+        ),
+        left_brain=LeftBrain(**left_brain_overrides),
+        right_brain=RightBrain(),
+    )
+
+
+def test_handoff_subject_omits_devices_for_a_person_with_no_company():
+    record = _escalation_record(user_count=None)
+    subject = notify_handoff._subject(record)
+    assert subject == "Customer waiting on the line - A customer"
+
+
+def test_handoff_subject_pluralises_a_single_device_correctly():
+    record = _escalation_record(company="Acme", user_count=1)
+    subject = notify_handoff._subject(record)
+    assert subject == "Customer waiting on the line - Acme, 1 device"
+
+
+def test_handoff_body_omits_company_line_when_absent():
+    record = _escalation_record(user_count=1)
+    body = notify_handoff._body(record, "https://example.com/join", "Shipra")
+    assert "Company:" not in body
+    assert "Devices: 1" in body
 
 
 def test_booking_records_the_slot_id_for_the_call_end_hook():

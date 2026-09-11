@@ -78,6 +78,14 @@ def _to_espo(lead: Lead) -> dict:
         payload["assignedUserId"] = assigned
     if lead.company:
         payload["accountName"] = lead.company
+    if lead.title:
+        payload["title"] = lead.title
+    if lead.industry:
+        # Espo's stock Lead entity ships an "industry" dropdown field by
+        # default - unlike title/email/phone this one hasn't been confirmed
+        # against a live instance yet. If it silently doesn't stick, it's
+        # still fully live in LeftBrain/the console either way.
+        payload["industry"] = lead.industry
     if lead.email:
         payload["emailAddress"] = lead.email
     if lead.phone:
@@ -111,6 +119,8 @@ def _from_espo(record: dict) -> Lead:
         # freshly created lead round-trip with the company as the contact.
         # firstName/lastName are what we actually wrote.
         name=" ".join(filter(None, [record.get("firstName"), record.get("lastName")])) or None,
+        title=record.get("title"),
+        industry=record.get("industry"),
         company=record.get("accountName"),
         email=record.get("emailAddress"),
         phone=record.get("phoneNumber"),

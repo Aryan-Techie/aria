@@ -65,7 +65,7 @@ def _recap_lines(session: SessionState) -> list[str]:
     """
     left, right = session.left_brain, session.right_brain
     lines: list[str] = []
-    if left.user_count:
+    if left.user_count and left.user_count > 1:
         lines.append(f"- Fleet size: {left.user_count} devices")
     if left.budget_range:
         lines.append(f"- Budget: {left.budget_range}")
@@ -87,7 +87,7 @@ def _body(*, lead: Lead, slot: Slot, label: str, recap: list[str]) -> str:
         greeting,
         "",
         f"Thanks for your time just now. Your meeting{company} with {slot.rep_name} "
-        f"from the Apple Business team is confirmed for {label}.",
+        f"from Apple Sales is confirmed for {label}.",
         "",
         "The invitation is attached - accept it and it will drop straight into "
         "your calendar.",
@@ -99,7 +99,7 @@ def _body(*, lead: Lead, slot: Slot, label: str, recap: list[str]) -> str:
         "If that time stops working, reply to this email and we will move it.",
         "",
         "Aria",
-        "Apple Business team",
+        "Apple Sales",
     ]
     return "\n".join(parts)
 
@@ -153,8 +153,8 @@ def send_booking_confirmation(
         label = slot_label(slot.start)
         recap = _recap_lines(session) if include_recap else []
         description = (
-            f"Apple Business consultation with {slot.rep_name}.\n"
-            f"Booked on a call with Aria, the Apple Business voice assistant.\n"
+            f"Apple Sales consultation with {slot.rep_name}.\n"
+            f"Booked on a call with Aria, the Apple Sales voice assistant.\n"
             f"Reference: {session.session_id}"
         )
         invite = ics.build_invite(
@@ -164,7 +164,7 @@ def send_booking_confirmation(
             uid=f"aria-{session.session_id}@aria.local",
             start=slot.start,
             end=slot.end,
-            summary=f"Apple Business demo - {slot.rep_name}",
+            summary=f"Apple Sales demo - {slot.rep_name}",
             description=description,
             location=MEETING_LOCATION,
             organizer_email=from_email,
@@ -173,7 +173,7 @@ def send_booking_confirmation(
             attendee_name=lead.name,
         )
         message = mailer.build_message(
-            subject=f"Confirmed: your Apple Business demo, {label}",
+            subject=f"Confirmed: your Apple Sales demo, {label}",
             from_email=from_email,
             from_name=from_name,
             to_email=to_email,

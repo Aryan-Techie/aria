@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-PRODID = "-//Aria//Apple Business Sales Agent//EN"
+PRODID = "-//Aria//Apple Sales Agent//EN"
 _MAX_OCTETS = 75
 
 

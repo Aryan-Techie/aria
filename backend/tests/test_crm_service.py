@@ -40,5 +40,6 @@ def test_qualify_lead_sets_status_and_note():
 def test_list_leads_includes_seed_fixtures():
     store = LeadStore()
     leads = service.list_leads(store=store)
-    assert len(leads) == 3
+    assert len(leads) == 4
     assert any(lead.company == "Vantiq Health" for lead in leads)
+    assert any(lead.company is None and lead.user_count == 1 for lead in leads)

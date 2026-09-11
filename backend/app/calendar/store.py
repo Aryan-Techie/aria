@@ -62,6 +62,27 @@ class CalendarStore:
             self._persist()
         return booking
 
+    def get_booking(self, booking_id: str) -> Booking | None:
+        return self._bookings.get(booking_id)
+
+    def cancel_booking(self, booking_id: str) -> Booking | None:
+        """Frees the slot and marks the booking cancelled. Idempotent-ish:
+        cancelling an already-cancelled booking just returns it unchanged
+        rather than re-freeing a slot someone else may since have taken."""
+        with self._lock:
+            booking = self._bookings.get(booking_id)
+            if booking is None or booking.cancelled_at is not None:
+                return booking
+            from datetime import datetime, timezone
+
+            booking = booking.model_copy(update={"cancelled_at": datetime.now(timezone.utc)})
+            self._bookings[booking.id] = booking
+            slot = self._slots.get(booking.slot_id)
+            if slot is not None:
+                self._slots[slot.id] = slot.model_copy(update={"booked": False})
+            self._persist()
+        return booking
+
     def reset(self) -> None:
         with self._lock:
             self._slots = {s.id: s for s in seed_slots()}

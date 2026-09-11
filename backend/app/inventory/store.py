@@ -56,16 +56,29 @@ def _from_espo(record: dict) -> Product:
 
 
 class MemoryProductStore:
-    """Fixtures, copied on read so a caller cannot mutate the seed set."""
+    """Fixtures plus whatever's been added since - copied on read so a
+    caller cannot mutate the live list by editing a returned Product."""
+
+    def __init__(self) -> None:
+        self._products = [p.model_copy() for p in SEED_PRODUCTS]
 
     def all(self) -> list[Product]:
-        return [p.model_copy() for p in SEED_PRODUCTS]
+        return [p.model_copy() for p in self._products]
+
+    def add(self, product: Product) -> Product:
+        self._products.append(product)
+        return product
 
 
 class EspoProductStore:
-    """Live CAriaProduct rows. Read-only on purpose - stock is changed by a
-    person in the CRM or by whatever system owns it, never by the agent
-    mid-call, and the API user's role grants read only."""
+    """Live CAriaProduct rows. Read-only for the AGENT's own tool-calling
+    path (check_inventory never writes) - the API user's role otherwise
+    grants read only, per scripts/provision_crm.py's ROLE_DATA. add() below
+    is a distinct, explicit admin action (the new /api/products endpoint),
+    not something the agent can reach mid-call; it will raise EspoCRMError
+    if the provisioned role hasn't separately been granted create on
+    CAriaProduct - that's a real limitation to close in provision_crm.py,
+    not silently worked around here."""
 
     def __init__(self, client) -> None:
         self._client = client
@@ -79,6 +92,23 @@ class EspoProductStore:
             logger.warning("inventory: EspoCRM read failed (%s)", exc)
             raise InventoryUnavailable(str(exc)) from exc
         return [_from_espo(row) for row in rows]
+
+    def add(self, product: Product) -> Product:
+        payload: dict = {
+            "sku": product.sku,
+            "name": product.name,
+            "stockQty": product.stock_qty,
+            "status": product.status,
+        }
+        if product.price_usd is not None:
+            payload["priceUsd"] = product.price_usd
+        if product.lead_time_days is not None:
+            payload["leadTimeDays"] = product.lead_time_days
+        # description/category aren't provisioned CAriaProduct fields today
+        # (see scripts/provision_crm.py's INVENTORY_FIELDS) - they round-trip
+        # fine on the in-memory store, which is what actually runs in dev.
+        record = self._client.create(ENTITY, payload)
+        return product.model_copy(update={"sku": record.get("sku", product.sku)})
 
 
 def _build_store():

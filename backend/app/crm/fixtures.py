@@ -40,4 +40,17 @@ SEED_LEADS: list[Lead] = [
         status="meeting_booked",
         notes=["Enterprise demo already booked last week."],
     ),
+    Lead(
+        name="Jordan Kim",
+        company=None,
+        email="jordan.kim@gmail.com",
+        phone="+1-555-0199",
+        user_count=1,
+        budget_range="under $1200",
+        timeline="this week",
+        pain_points=["cracked screen on current phone"],
+        decision_stage="ready_to_buy",
+        status="new",
+        notes=["Buying for personal use, not a company."],
+    ),
 ]

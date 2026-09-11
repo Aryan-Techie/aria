@@ -133,7 +133,7 @@ SEED_PRODUCTS = [
     {"name": "iPhone 15", "sku": "IPHONE-15", "stockQty": 0, "priceUsd": 799.0, "leadTimeDays": 21},
 ]
 
-# Only what the tool loop actually touches. Lead and Meeting are the two
+# Only what the tool loop actually touches. Lead, Meeting and Task are the
 # entities Aria writes to; Account/Contact are readable so a lookup against an
 # existing customer works, but she has no business deleting anything.
 ROLE_DATA = {
@@ -144,15 +144,21 @@ ROLE_DATA = {
     "data": {
         "Lead": {"create": "yes", "read": "all", "edit": "all", "delete": "no", "stream": "all"},
         "Meeting": {"create": "yes", "read": "all", "edit": "all", "delete": "no", "stream": "all"},
+        # Stock entity, same as Meeting - a follow-up ("call back after
+        # they've talked to their CFO") isn't a calendar hold, it's a task.
+        "Task": {"create": "yes", "read": "all", "edit": "all", "delete": "no", "stream": "all"},
         "Account": {"create": "no", "read": "all", "edit": "no", "delete": "no", "stream": "no"},
         "Contact": {"create": "no", "read": "all", "edit": "no", "delete": "no", "stream": "no"},
         # read:all, not own - assigning a Meeting to the rep user is a link
         # operation, and Espo refuses it ("No foreign record access for link
         # operation") unless the API user can read that User record.
         "User": {"create": "no", "read": "all", "edit": "no", "delete": "no", "stream": "no"},
-        # Read-only on purpose. Stock is changed by a person in the CRM, or by
-        # whatever system owns it — never by the agent mid-call.
-        INVENTORY_SCOPE: {"create": "no", "read": "all", "edit": "no", "delete": "no", "stream": "no"},
+        # Read from the voice agent's own tools, which never call
+        # product_store.add()/update() - confirmed nothing in
+        # app/tools/definitions.py writes stock. create/edit are for the
+        # dashboard's "Add a product" admin form, which authenticates as
+        # this same API user - it needs them, or every add 403s.
+        INVENTORY_SCOPE: {"create": "yes", "read": "all", "edit": "yes", "delete": "no", "stream": "no"},
     },
     "fieldData": {},
 }
@@ -168,6 +174,10 @@ def _request(method: str, path: str, payload: dict | None = None, params: dict |
     token = b64encode(f"{ADMIN_USER}:{ADMIN_PASSWORD}".encode()).decode()
     req.add_header("Authorization", f"Basic {token}")
     req.add_header("Content-Type", "application/json")
+    # EspoCRM (or a WAF in front of it) blocks the default Python-urllib
+    # user-agent as a bot - curl with the same creds gets 200, urllib gets
+    # a bare 403 with no other clue. A real browser-shaped UA is the fix.
+    req.add_header("User-Agent", "Mozilla/5.0 (provision_crm.py)")
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:

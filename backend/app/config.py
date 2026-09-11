@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     # Most providers reject a From that is not the authenticated mailbox, so
     # this falls back to SMTP_USERNAME when blank.
     email_from: str = ""
-    email_from_name: str = "Aria - Apple Business team"
+    email_from_name: str = "Aria - Apple Sales"
     email_reply_to: str = ""
     # Optional silent copy to the rep who owns the meeting.
     email_bcc: str = ""

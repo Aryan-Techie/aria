@@ -18,7 +18,7 @@ logger = logging.getLogger("aria.notify")
 def _subject(record: EscalationRecord) -> str:
     lead = record.left_brain
     who = lead.company or "A customer"
-    size = f", {lead.user_count} devices" if lead.user_count else ""
+    size = "" if not lead.user_count else ", 1 device" if lead.user_count == 1 else f", {lead.user_count} devices"
     return f"Customer waiting on the line - {who}{size}"
 
 
@@ -36,7 +36,10 @@ def _body(record: EscalationRecord, url: str, rep_name: str) -> str:
         f"Blocker: {brief.blocker}",
         f"Suggested: {brief.recommended_action}",
         "",
-        f"Company: {lead.company or '-'}",
+    ]
+    if lead.company:
+        lines.append(f"Company: {lead.company}")
+    lines += [
         f"Devices: {lead.user_count or '-'}",
         f"Budget: {lead.budget_range or '-'}",
         f"Timeline: {lead.timeline or '-'}",

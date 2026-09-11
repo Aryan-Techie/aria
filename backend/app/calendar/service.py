@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from app.calendar.models import Booking, Slot, SlotTakenError
+from app.calendar.models import Booking, BookingNotFoundError, Slot, SlotTakenError
 from app.calendar.store import CalendarStore, calendar_store
 
 
@@ -48,3 +48,26 @@ def book(
 
     booking = Booking(slot_id=slot_id, lead_id=lead_id, session_id=session_id)
     return store.save_booking(booking)
+
+
+def cancel(booking_id: str, *, store: CalendarStore = calendar_store) -> Booking:
+    booking = store.cancel_booking(booking_id)
+    if booking is None:
+        raise BookingNotFoundError(f"No such booking: {booking_id}")
+    return booking
+
+
+def reschedule(
+    booking_id: str,
+    new_slot_id: str,
+    lead_id: str,
+    session_id: str,
+    *,
+    store: CalendarStore = calendar_store,
+) -> Booking:
+    """Cancel-then-book rather than a move: the old slot has to go back on
+    the market whether or not the new one is actually available, and
+    book()'s own SlotTakenError is the honest answer if two callers raced
+    for the same new slot."""
+    cancel(booking_id, store=store)
+    return book(new_slot_id, lead_id, session_id, store=store)

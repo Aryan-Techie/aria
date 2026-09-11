@@ -26,6 +26,11 @@ class Product(BaseModel):
     # blank, so a product a person created by hand in the Espo UI without
     # picking an availability still answers correctly.
     status: Availability = "in_stock"
+    # Prose, not stock-keeping data - blank for the seeded catalogue, set
+    # when a product is added through the admin dashboard so the RAG doc
+    # generated for it (app/rag/docs/custom_products.md) has something to say.
+    description: str | None = None
+    category: str | None = None
 
     def resolved_status(self) -> Availability:
         if self.status == "discontinued":

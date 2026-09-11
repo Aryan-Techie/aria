@@ -15,6 +15,8 @@ from app.calendar.models import Booking
 from app.crm.espo_client import EspoClient, EspoCRMError, from_espo_datetime, to_espo_datetime
 from app.crm.espo_store import EspoLeadStore
 from app.crm.models import Lead
+from app.tasks.espo_store import EspoTaskStore
+from app.tasks.models import Task
 
 
 def _client(handler) -> EspoClient:
@@ -90,6 +92,27 @@ def test_lead_writes_use_the_c_prefixed_custom_field_names():
     assert captured["cAriaBudgetRange"] == "50k"
     assert captured["cAriaSessionId"] == "sess-1"
     assert "ariaUserCount" not in captured
+
+
+def test_industry_writes_and_reads_as_espos_stock_field():
+    """Unlike user_count/budget_range/etc, industry is a genuine stock Lead
+    attribute on Espo's default schema - it needs no c-prefix and no
+    provision_crm.py entry. Confirms the mapping code is correct; whether
+    Espo's own schema actually has this field is a separate, unverified
+    assumption (see the comment in espo_store.py)."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        captured.update(_json.loads(request.read()))
+        return httpx.Response(200, json={"id": "rec-1", "status": "New", "industry": "Logistics"})
+
+    store = EspoLeadStore(_client(handler))
+    store.save(Lead(session_id="s", industry="Logistics"))
+
+    assert captured["industry"] == "Logistics"
+    assert "cIndustry" not in captured
 
 
 def test_lead_status_maps_onto_espos_own_enum():
@@ -184,6 +207,45 @@ def test_availability_marks_slots_taken_by_existing_meetings():
     slots = EspoCalendarStore(_client(handler), "u1").all_slots()
     assert [s.booked for s in slots if s.start == taken_start] == [True]
     assert sum(1 for s in slots if s.booked) == 1
+
+
+def test_cancelled_meetings_do_not_count_as_busy():
+    """A "Not Held" meeting is what cancel_booking() sets - it must free the
+    slot back up, or a cancelled meeting blocks its time forever."""
+    grid_probe = EspoCalendarStore(_client(lambda r: httpx.Response(200, json={"list": []})), "u1")
+    free_start = grid_probe.all_slots()[0].start
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "list": [
+                    {"id": "m1", "dateStart": to_espo_datetime(free_start), "status": "Not Held"}
+                ]
+            },
+        )
+
+    slots = EspoCalendarStore(_client(handler), "u1").all_slots()
+    assert not any(s.booked for s in slots)
+
+
+def test_cancel_booking_sets_not_held():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        if request.method == "PUT":
+            captured.update(_json.loads(request.read()))
+            return httpx.Response(200, json={"id": "m1"})
+        return httpx.Response(200, json={"id": "m1", "status": "Not Held", "dateStart": "2026-09-20 10:00:00"})
+
+    store = EspoCalendarStore(_client(handler), "u1")
+    result = store.cancel_booking("m1")
+
+    assert captured["status"] == "Not Held"
+    assert result is not None
+    assert result.cancelled_at is not None
 
 
 def test_booking_creates_a_meeting_with_an_assignee():
@@ -302,3 +364,26 @@ def test_create_skips_espos_duplicate_check():
 
     _client(handler).create("Lead", {"lastName": "Priya"})
     assert seen["skip"] == "true"
+
+
+def test_task_writes_to_espos_stock_task_entity():
+    """Task is a genuine stock EspoCRM entity - no custom-field provisioning,
+    same tier as Lead.title/Lead.industry."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        captured.update(_json.loads(request.read()))
+        return httpx.Response(200, json={"id": "task-1"})
+
+    store = EspoTaskStore(_client(handler), "user-42")
+    task = store.save(Task(session_id="s", lead_id="lead-1", note="call back after CFO signs off", due="2026-09-20"))
+
+    assert task.id == "task-1"
+    assert captured["description"] == "call back after CFO signs off"
+    assert captured["status"] == "Not Started"
+    assert captured["assignedUserId"] == "user-42"
+    assert captured["dateEnd"] == "2026-09-20"
+    assert captured["parentType"] == "Lead"
+    assert captured["parentId"] == "lead-1"

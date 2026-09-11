@@ -18,6 +18,8 @@ def upsert_lead(
     pain_points: list[str] | None = None,
     decision_stage: DecisionStage | None = None,
     name: str | None = None,
+    title: str | None = None,
+    industry: str | None = None,
     email: str | None = None,
     phone: str | None = None,
     store: LeadStore = lead_store,
@@ -49,6 +51,10 @@ def upsert_lead(
         lead.decision_stage = decision_stage
     if name is not None:
         lead.name = name
+    if title is not None:
+        lead.title = title
+    if industry is not None:
+        lead.industry = industry
     if email is not None:
         lead.email = email
     if phone is not None:
@@ -56,6 +62,33 @@ def upsert_lead(
 
     lead.updated_at = _now()
     return store.save(lead)
+
+
+def sync_left_brain(session, lead: Lead) -> None:
+    """Mirrors the CRM-shaped fields onto the session's own LeftBrain record.
+
+    Both the voice tool loop (tools/executor.py) and a manual console edit
+    call this after writing the Lead, so either path is re-rendered into the
+    next system prompt the same way - a field typed into the console is a
+    fact Aria already has, not one she asks for again.
+    """
+    for field in (
+        "name",
+        "title",
+        "company",
+        "industry",
+        "email",
+        "phone",
+        "user_count",
+        "budget_range",
+        "timeline",
+        "decision_stage",
+        "status",
+    ):
+        value = getattr(lead, field)
+        if value is not None:
+            setattr(session.left_brain, field, value)
+    session.left_brain.pain_points = lead.pain_points
 
 
 def qualify_lead(
