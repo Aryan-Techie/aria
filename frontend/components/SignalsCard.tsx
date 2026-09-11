@@ -43,6 +43,7 @@ export function SignalsCard({ brain }: { brain: RightBrain | null }) {
               <span className="q">
                 <i>“{o.raised_text}”</i>
                 {!o.resolved && o.attempts > 1 && <small> · raised {o.attempts}×</small>}
+                {o.resolved && o.resolution_text && <small> · {o.resolution_text}</small>}
               </span>
               <span className="s">
                 <CheckIcon />

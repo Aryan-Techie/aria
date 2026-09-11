@@ -312,6 +312,24 @@ export class AgoraCallClient {
   }
 
   /**
+   * The raw remote audio, for the 3D avatar's lipsync - a real FFT of what
+   * Aria is actually saying, not the SDK's own single-number volume meter
+   * getLevels() uses. Runs alongside the SDK's own playback (track.play(),
+   * above), not instead of it - tapping the MediaStreamTrack does not stop
+   * the SDK from playing it normally.
+   */
+  getRemoteMediaStreamTrack(): MediaStreamTrack | null {
+    for (const track of this.remoteTracks.values()) {
+      try {
+        return track.getMediaStreamTrack();
+      } catch {
+        // track torn down between frames
+      }
+    }
+    return null;
+  }
+
+  /**
    * Hold is the console's "pause". The backend has no pause primitive (there
    * is no way to freeze a turn that is already generating), so hold is done
    * at the edges: the mic is muted so nothing new reaches the recogniser,

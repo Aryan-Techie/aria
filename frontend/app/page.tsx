@@ -9,10 +9,13 @@ import { SignalsCard } from "@/components/SignalsCard";
 import { DealCard, type DealRound } from "@/components/DealCard";
 import { HandoffCard, type Escalation } from "@/components/HandoffCard";
 import { ActivityCard, type ToolRecord } from "@/components/ActivityCard";
+import { ToolPopup } from "@/components/ToolPopup";
+import { Avatar3D } from "@/components/Avatar3D";
 import { Brief } from "@/components/Brief";
 import { AgoraCallClient, type RtmCustomEvent } from "@/lib/agoraClient";
 import {
   endCall,
+  fetchCapacity,
   fetchSessionEvents,
   fetchSummary,
   startCall,
@@ -37,6 +40,7 @@ export default function Home() {
   const [status, setStatus] = useState<CallStatus>("idle");
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [tools, setTools] = useState<ToolRecord[]>([]);
+  const [ragScore, setRagScore] = useState<number | null>(null);
   const [leftBrain, setLeftBrain] = useState<LeftBrain | null>(null);
   const [rightBrain, setRightBrain] = useState<RightBrain | null>(null);
   const [rounds, setRounds] = useState<DealRound[]>([]);
@@ -60,6 +64,11 @@ export default function Home() {
   const [youTalking, setYouTalking] = useState(false);
   const [tab, setTab] = useState<"brief" | "transcript">("brief");
   const [dark, setDark] = useState(false);
+  // Opt-in only - the 2D orb is the proven default. See components/Avatar3D.tsx.
+  const [use3D, setUse3D] = useState(false);
+  // Live-calls badge - proof this isn't a single-call toy, sourced from the
+  // same endpoint the /dashboard page polls. Failures just hide the badge.
+  const [callsLiveNow, setCallsLiveNow] = useState<number | null>(null);
 
   const sessionIdRef = useRef<string | null>(null);
   const clientRef = useRef<AgoraCallClient | null>(null);
@@ -85,6 +94,25 @@ export default function Home() {
       // private mode - the choice just does not persist
     }
   };
+
+  /* ---------------- live-calls badge ---------------- */
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const snapshot = await fetchCapacity();
+        if (!cancelled) setCallsLiveNow(snapshot.calls_live_now);
+      } catch {
+        if (!cancelled) setCallsLiveNow(null);
+      }
+    };
+    void poll();
+    const id = setInterval(poll, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   /* ---------------- clock ---------------- */
   useEffect(() => {
@@ -168,7 +196,8 @@ export default function Home() {
           list.push({ id, startedMs: eventMs });
           inFlightRef.current.set(tool, list);
           const at = startedAtRef.current ? Math.max(0, (eventMs - startedAtRef.current) / 1000) : 0;
-          setTools((prev) => [...prev, { id, tool, at, ms: null }]);
+          const args = p.args && typeof p.args === "object" ? (p.args as Record<string, unknown>) : undefined;
+          setTools((prev) => [...prev, { id, tool, at, ms: null, args }]);
           setFeed((prev) => [...prev, { kind: "tool", id, tool, ms: null }]);
           break;
         }
@@ -178,8 +207,10 @@ export default function Home() {
           const started = list.shift();
           if (!started) break;
           const ms = Math.max(0, Math.round(eventMs - started.startedMs));
+          const resultSummary = p.result_summary ? String(p.result_summary) : undefined;
           const failed = String(p.result_summary ?? "").includes('"error"');
-          setTools((prev) => prev.map((t) => (t.id === started.id ? { ...t, ms } : t)));
+          if (p.rag_score != null) setRagScore(Number(p.rag_score));
+          setTools((prev) => prev.map((t) => (t.id === started.id ? { ...t, ms, resultSummary } : t)));
           setFeed((prev) =>
             prev.map((e) =>
               e.kind === "tool" && e.id === started.id
@@ -219,6 +250,7 @@ export default function Home() {
             inbox_position: p.inbox_position == null ? null : Number(p.inbox_position),
             handoff_url: p.handoff_url ? String(p.handoff_url) : null,
             rep_name: p.rep_name ? String(p.rep_name) : null,
+            brief: (p.brief as Escalation["brief"]) ?? null,
           };
           setEscalation(esc);
           pushNote("bad", esc.reason ? `Handed to a person: ${esc.reason}` : "Handed to a person with a written brief");
@@ -456,7 +488,21 @@ export default function Home() {
           <span>{statusLabel}</span>
           {status !== "idle" && <span className="time">{fmt(status === "ended" ? durationSeconds : elapsed)}</span>}
         </div>
+        {callsLiveNow != null && callsLiveNow > 0 && (
+          <span className="pill info" title="Calls live across the whole backend right now">
+            {callsLiveNow} live
+          </span>
+        )}
         <div className="actions">
+          <a href="/about" className="ghost">
+            Story
+          </a>
+          <a href="/dashboard" className="ghost">
+            Dashboard
+          </a>
+          <button className="ghost" onClick={() => setUse3D((v) => !v)} aria-pressed={use3D}>
+            {use3D ? "2D orb" : "3D face"}
+          </button>
           <button className="ghost" onClick={toggleTheme}>
             {dark ? "Light" : "Dark"}
           </button>
@@ -466,7 +512,18 @@ export default function Home() {
       <main className="stage" data-phase={phase}>
         <section className="left">
           <div className={`voice${hold ? " hold" : ""}`}>
-            <Orb phase={phase} speaker={speaker} hold={hold} getLevel={getLevel} />
+            {use3D ? (
+              <Avatar3D
+                phase={phase}
+                speaker={speaker}
+                hold={hold}
+                getLevel={getLevel}
+                getTrack={() => clientRef.current?.getRemoteMediaStreamTrack() ?? null}
+              />
+            ) : (
+              <Orb phase={phase} speaker={speaker} hold={hold} getLevel={getLevel} />
+            )}
+            <ToolPopup tools={tools} />
             <div className="caption">{caption}</div>
             <div className="controls">
               {(status === "idle" || status === "ended") && (
@@ -546,7 +603,7 @@ export default function Home() {
         </section>
 
         <aside className="sheet">
-          <LeadCard lead={leftBrain} booked={booked} escalated={escalation !== null} />
+          <LeadCard lead={leftBrain} booked={booked} escalated={escalation !== null} sessionId={sessionIdRef.current} />
           <SignalsCard brain={rightBrain} />
           <DealCard
             rounds={rounds}
@@ -555,7 +612,7 @@ export default function Home() {
             approvedPct={approvedPct}
             approvedBy={approvedBy}
           />
-          <HandoffCard brain={rightBrain} escalation={escalation} repOnCall={repOnCall} />
+          <HandoffCard brain={rightBrain} escalation={escalation} repOnCall={repOnCall} ragScore={ragScore} />
           <ActivityCard tools={tools} booked={booked} />
         </aside>
       </main>

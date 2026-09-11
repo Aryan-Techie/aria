@@ -4,6 +4,13 @@ import { useState } from "react";
 import type { RightBrain } from "@/lib/api";
 import { TRIGGER_LABEL } from "@/lib/vocab";
 
+export interface EscalationBrief {
+  issue: string;
+  blocker: string;
+  sentiment: string;
+  recommended_action: string;
+}
+
 export interface Escalation {
   trigger_source: string;
   reason: string | null;
@@ -12,6 +19,8 @@ export interface Escalation {
   /** Where a person opens the call - backend routes/rep.py. */
   handoff_url: string | null;
   rep_name: string | null;
+  /** The same LLM-written summary that goes out over Slack. */
+  brief: EscalationBrief | null;
 }
 
 // app/escalation/triggers.py - the same thresholds the backend checks
@@ -19,6 +28,7 @@ export interface Escalation {
 // rather than only that one did.
 const FRUSTRATION_STREAK_LEN = 2;
 const OBJECTION_MAX_ATTEMPTS = 3;
+const LOW_CONFIDENCE_THRESHOLD = 0.15;
 
 /**
  * When a person gets pulled in. Three deterministic guardrails plus Aria's
@@ -30,11 +40,14 @@ export function HandoffCard({
   brain,
   escalation,
   repOnCall,
+  ragScore,
 }: {
   brain: RightBrain | null;
   escalation: Escalation | null;
   /** Set once the rep's mic is live on the channel (rep_joined event). */
   repOnCall: string | null;
+  /** The real search_pricing_rag confidence score, once a search has run. */
+  ragScore: number | null;
 }) {
   const history = brain?.sentiment_history ?? [];
   const recent = history.slice(-FRUSTRATION_STREAK_LEN);
@@ -58,9 +71,21 @@ export function HandoffCard({
         <div className="handoff">
           <b>{TRIGGER_LABEL[escalation.trigger_source] ?? escalation.trigger_source.replace(/_/g, " ")}</b>
           {escalation.reason && <p>{escalation.reason}</p>}
+          {escalation.brief && (
+            <>
+              <p>
+                <span className="k">Issue</span> {escalation.brief.issue}
+              </p>
+              <p>
+                <span className="k">Blocker</span> {escalation.brief.blocker}
+              </p>
+              <p>
+                <span className="k">Next</span> {escalation.brief.recommended_action}
+              </p>
+            </>
+          )}
           <p className="meta">
-            Brief written.
-            {escalation.inbox_position != null && ` Number ${escalation.inbox_position} in the inbox.`}
+            {escalation.inbox_position != null && `Number ${escalation.inbox_position} in the inbox.`}
           </p>
           {escalation.handoff_url && !repOnCall && <JoinLink url={escalation.handoff_url} name={escalation.rep_name ?? "the rep"} />}
           {repOnCall && <p className="meta">{repOnCall} joined the call. Aria has handed over and left.</p>}
@@ -79,7 +104,12 @@ export function HandoffCard({
             value={worstObjection}
             max={OBJECTION_MAX_ATTEMPTS}
           />
-          <Guard label="Low-confidence answer" hint="knowledge base miss" value={0} max={1} />
+          <Guard
+            label="Low-confidence answer"
+            hint={ragScore == null ? "no search yet" : `last search scored ${ragScore.toFixed(2)}`}
+            value={ragScore != null && ragScore < LOW_CONFIDENCE_THRESHOLD ? 1 : 0}
+            max={1}
+          />
           <p className="meta">Aria can also ask for a person herself. Any of these ends the call with a written brief.</p>
         </div>
       )}

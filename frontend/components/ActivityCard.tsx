@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { minutesHandled, toolDone } from "@/lib/vocab";
 
 export interface ToolRecord {
@@ -10,6 +10,10 @@ export interface ToolRecord {
   at: number;
   /** Round trip in ms; null while still running. */
   ms: number | null;
+  /** What was actually asked - the tool call's own arguments. */
+  args?: Record<string, unknown>;
+  /** First 300 chars of what came back, as sent to the model. */
+  resultSummary?: string;
 }
 
 const SLOW_MS = 900;
@@ -47,16 +51,25 @@ export function ActivityCard({ tools, booked }: { tools: ToolRecord[]; booked: b
       <div className="acts" ref={ref}>
         {tools.length === 0 && <p className="meta">Every lookup, write and booking lands here with its round trip.</p>}
         {tools.map((t) => (
-          <div className="act" key={t.id}>
-            <span className="ts">{stamp(t.at)}</span>
-            <span className="n">
-              {toolDone(t.tool)}
-              <small>{t.tool}</small>
-            </span>
-            <span className={`ms${t.ms === null ? " busy" : t.ms > SLOW_MS ? " slow" : ""}`}>
-              {t.ms === null ? "…" : `${t.ms} ms`}
-            </span>
-          </div>
+          <Fragment key={t.id}>
+            <div className="act">
+              <span className="ts">{stamp(t.at)}</span>
+              <span className="n">
+                {toolDone(t.tool)}
+                <small>{t.tool}</small>
+              </span>
+              <span className={`ms${t.ms === null ? " busy" : t.ms > SLOW_MS ? " slow" : ""}`}>
+                {t.ms === null ? "…" : `${t.ms} ms`}
+              </span>
+            </div>
+            {(t.args && Object.keys(t.args).length > 0) || t.resultSummary ? (
+              <details className="act-detail">
+                <summary>what was called</summary>
+                {t.args && Object.keys(t.args).length > 0 && <pre>{JSON.stringify(t.args, null, 2)}</pre>}
+                {t.resultSummary && <pre>{t.resultSummary}</pre>}
+              </details>
+            ) : null}
+          </Fragment>
         ))}
       </div>
       <div className="saved">
