@@ -4,7 +4,7 @@ Prospects almost always open with "isn't this more expensive than what we have n
 
 ## Upfront price
 - A typical business Windows laptop: $700-$1,200 depending on spec.
-- MacBook Air (M3): starts at $999, with volume pricing from $949 at 20+ devices.
+- MacBook Air (M5): starts at $999, with volume pricing from $949 at 20+ devices.
 - Sticker price is close to parity at the low end; Apple is genuinely more expensive at the premium end (MacBook Pro vs. a comparable Windows workstation).
 
 ## Total cost of ownership (this is where Apple actually wins)
@@ -22,3 +22,6 @@ Prospects almost always open with "isn't this more expensive than what we have n
 
 ## When a prospect says "our current PCs still work fine"
 Don't argue against it — ask what's actually driving them to consider a change (a lease renewal, security incident, employee requests, a new hire cohort). If there's no real trigger yet, that's a legitimate "not ready" signal, not an objection to push past.
+
+## When it's a person buying for themselves, not a company
+"Isn't this more expensive?" means something different from a person than it does from a company — there's no fleet TCO to point to, just their own budget. Talk about what actually matters to one buyer: device lifespan (a Mac or iPhone commonly stays useful longer before it needs replacing), resale value if they upgrade again in a couple of years, and monthly financing if the concern is cash-on-hand rather than the sticker price itself. Trade-in credit on their current device works the same way it does for a fleet — it just lowers what one person pays, not what a company pays.

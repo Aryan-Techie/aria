@@ -297,6 +297,12 @@ def test_heuristic_proposal_stays_inside_the_desk_ceiling():
     assert proposal.commitments, "a fallback that gives ground for nothing is worse than none"
 
 
+def test_heuristic_proposal_drops_device_count_commitment_for_a_single_unit():
+    proposal = desk.heuristic_proposal(requested_pct=25, already_granted=0, units=1)
+    assert proposal.commitments
+    assert all(c.kind != "device_count_floor" for c in proposal.commitments)
+
+
 def test_the_system_prompt_restates_the_offer_that_actually_stands(session, monkeypatch):
     """Two turns later the tool result has scrolled out of the useful part of
     the history. Without this she re-opens the round from zero, or contradicts

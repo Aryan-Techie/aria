@@ -5,7 +5,13 @@ from app.rag.retriever import KeywordIndex, top_score
 def test_corpus_loads_all_docs():
     chunks = build_corpus()
     sources = {c.source for c in chunks}
-    assert sources == {"competitor_comparison.md", "faq.md", "features.md", "pricing.json"}
+    assert sources == {
+        "competitor_comparison.md",
+        "custom_products.md",
+        "faq.md",
+        "features.md",
+        "pricing.json",
+    }
     assert len(chunks) > 5
 
 

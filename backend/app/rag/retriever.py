@@ -77,6 +77,14 @@ def get_index() -> KeywordIndex:
     return _index
 
 
+def reset_index() -> None:
+    """Drops the cached index so the next search() rebuilds the corpus from
+    disk - called after an admin adds a product, so it's searchable
+    immediately rather than only after a process restart."""
+    global _index
+    _index = None
+
+
 def search(query: str, top_k: int = 4) -> list[SearchResult]:
     return get_index().search(query, top_k=top_k)
 

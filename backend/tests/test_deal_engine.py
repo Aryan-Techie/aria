@@ -204,6 +204,14 @@ def test_price_summary_carries_the_finished_numbers():
     assert "a month" in summary
 
 
+def test_price_summary_drops_fleet_wording_for_a_single_device():
+    quote = engine.build_quote(units=1)
+    summary = engine.price_summary(quote)
+    assert "fleet" not in summary
+    assert "a device," not in summary
+    assert "$" in summary
+
+
 def test_model_names_survive_speech_recognition():
     assert normalise_model("mac book pro") == "macbook_pro"
     assert normalise_model("MacBook Air M3") == "macbook_air"

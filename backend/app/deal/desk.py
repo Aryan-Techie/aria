@@ -120,10 +120,17 @@ def _build_prompt(
     qualification: str,
     objections: str,
 ) -> str:
+    fleet_line = (
+        f"Buying 1 device. List total ${list_total:,.0f}."
+        if units <= 1
+        else (
+            f"Fleet: {units} devices. List total ${list_total:,.0f}. "
+            f"They already earn {tier_name} volume pricing at {volume_discount_pct:g}% off, automatically."
+        )
+    )
     lines = [
         f"Customer just said: {customer_ask!r}",
-        f"Fleet: {units} devices. List total ${list_total:,.0f}. "
-        f"They already earn {tier_name} volume pricing at {volume_discount_pct:g}% off, automatically.",
+        fleet_line,
         f"Negotiation round: {round_number}. Already conceded on this call: {already_granted:g}%.",
     ]
     if requested_pct:
@@ -141,6 +148,7 @@ def heuristic_proposal(
     *,
     requested_pct: float | None,
     already_granted: float,
+    units: int = 0,
     policy: DealPolicy = DEFAULT_POLICY,
 ) -> DeskProposal:
     """Deterministic fallback, used when the desk call fails or comes back
@@ -172,13 +180,17 @@ def heuristic_proposal(
                 detail=f"{policy.financing_months}-month financing through Apple Financial Services if the blocker is cash flow rather than total cost.",
             ),
         ],
-        commitments=[
-            Commitment(
-                kind="device_count_floor",
-                detail="Confirm the device count they are committing to.",
-            ),
-            Commitment(kind="decision_by", detail="Agree a date they will decide by."),
-        ],
+        commitments=(
+            [Commitment(kind="decision_by", detail="Agree a date they will decide by.")]
+            if units <= 1
+            else [
+                Commitment(
+                    kind="device_count_floor",
+                    detail="Confirm the device count they are committing to.",
+                ),
+                Commitment(kind="decision_by", detail="Agree a date they will decide by."),
+            ]
+        ),
         rationale="Met at the desk ceiling with the free levers attached and a commitment asked in return.",
         read="Pushing on the total number.",
     )
@@ -223,7 +235,10 @@ def consult(
     except Exception as exc:
         logger.warning("deal desk unavailable (%s); falling back to policy defaults", exc)
         return heuristic_proposal(
-            requested_pct=requested_pct, already_granted=already_granted, policy=policy
+            requested_pct=requested_pct,
+            already_granted=already_granted,
+            units=units,
+            policy=policy,
         )
 
 

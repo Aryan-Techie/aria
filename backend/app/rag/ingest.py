@@ -35,6 +35,8 @@ def _chunk_pricing_json(source: str, raw: str) -> list[Chunk]:
         billing_bits.append(f"Annual billing discount: {data['annual_discount_percent']}%.")
     if data.get("financing_note"):
         billing_bits.append(data["financing_note"])
+    if data.get("fleet_scope_note"):
+        billing_bits.append(data["fleet_scope_note"])
     chunks = [Chunk(source=source, text=" ".join(billing_bits))]
 
     for tier in data.get("tiers", []):

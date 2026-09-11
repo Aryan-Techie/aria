@@ -5,6 +5,7 @@
 - AppleCare+ for Business available per device (accidental damage, priority repair)
 - Apple Business Manager (ABM) account for centralized app/device purchasing
 - Email support, next-business-day response
+- Covers a single personal purchase just as well as a small team order — buying one iPhone for yourself sits in this same tier, at the same standard pricing, with no separate "individual" plan needed
 
 ## Growth (20-99 devices)
 - Everything in Starter

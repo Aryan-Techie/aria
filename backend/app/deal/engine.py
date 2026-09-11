@@ -262,10 +262,13 @@ def price_summary(quote: Quote) -> str:
     ]
     if quote.negotiated_discount_pct:
         parts.append(f"plus {quote.negotiated_discount_pct:g}% negotiated")
-    parts.append(
-        f"- that is {_fmt(quote.effective_unit_price)} a device, "
-        f"{_fmt(quote.effective_total)} for the fleet"
-    )
+    if quote.units <= 1:
+        parts.append(f"- that comes to {_fmt(quote.effective_total)}")
+    else:
+        parts.append(
+            f"- that is {_fmt(quote.effective_unit_price)} a device, "
+            f"{_fmt(quote.effective_total)} for the fleet"
+        )
     if quote.trade_in_credit:
         parts.append(f"after {_fmt(quote.trade_in_credit)} of trade-in credit")
     parts.append(f". Total saving against list: {_fmt(quote.total_savings)}.")

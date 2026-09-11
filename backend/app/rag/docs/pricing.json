@@ -6,14 +6,14 @@
     {
       "name": "Starter",
       "price_per_seat_monthly": null,
-      "price_per_device": "MacBook Air (M3) from $999/device; iPhone 16 from $799/device",
+      "price_per_device": "MacBook Air (M5) from $999/device; iPhone 17 from $899/device",
       "included_seats_band": "1-19 devices",
       "features": ["standard AppleCare+ available per device", "Apple Business Manager account setup", "email support"]
     },
     {
       "name": "Growth",
       "price_per_seat_monthly": null,
-      "price_per_device": "MacBook Air (M3) from $949/device (5% volume discount); iPhone 16 from $759/device",
+      "price_per_device": "MacBook Air (M5) from $949/device (5% volume discount); iPhone 17 from $854/device",
       "included_seats_band": "20-99 devices",
       "features": ["everything in Starter", "Mobile Device Management (MDM) enrollment automation", "dedicated onboarding specialist", "priority chat support"]
     },
@@ -27,12 +27,27 @@
     }
   ],
   "device_lineup": [
-    {"product": "MacBook Air (M3)", "starting_price": 999, "note": "13-inch, 18-hour battery"},
-    {"product": "MacBook Pro (M4)", "starting_price": 1599, "note": "for engineering/design-heavy roles"},
-    {"product": "iPhone 16", "starting_price": 799},
-    {"product": "iPhone 16 Pro", "starting_price": 999},
-    {"product": "iPad (10th gen)", "starting_price": 349, "note": "field teams, shared-device kiosks"},
-    {"product": "iPad Pro (M4)", "starting_price": 999}
+    {"product": "MacBook Air (M5)", "category": "Mac", "starting_price": 999, "note": "13-inch, 18-hour battery; also in 15-inch"},
+    {"product": "MacBook Pro (M5)", "category": "Mac", "starting_price": 1599, "note": "14-inch; for engineering/design-heavy roles; also available in M5 Pro and M5 Max, and a 16-inch size"},
+    {"product": "Mac mini", "category": "Mac", "starting_price": 599, "note": "desktop; for fixed workstations, labs, kiosks"},
+    {"product": "Mac Studio", "category": "Mac", "starting_price": 1999, "note": "M5 Max or M5 Ultra; for heavy compute/render workloads"},
+    {"product": "iMac (M4)", "category": "Mac", "starting_price": 1299, "note": "all-in-one desktop"},
+    {"product": "iPhone 17e", "category": "iPhone", "starting_price": 699, "note": "entry-level, A19 chip"},
+    {"product": "iPhone 17", "category": "iPhone", "starting_price": 899},
+    {"product": "iPhone Air", "category": "iPhone", "starting_price": 1099, "note": "thinnest model in the lineup, single rear camera"},
+    {"product": "iPhone 18 Pro", "category": "iPhone", "starting_price": 1199, "note": "6.3-inch; 6.9-inch model from $1299"},
+    {"product": "iPhone Duo", "category": "iPhone", "starting_price": 1999, "note": "foldable, 7.6-inch inner display, A20 Pro chip"},
+    {"product": "iPad", "category": "iPad", "starting_price": 449, "note": "field teams, shared-device kiosks; A16 chip"},
+    {"product": "iPad mini", "category": "iPad", "starting_price": 599, "note": "A17 Pro chip; pocketable field/inventory use"},
+    {"product": "iPad Air (M4)", "category": "iPad", "starting_price": 749},
+    {"product": "iPad Pro (M5)", "category": "iPad", "starting_price": 1199, "note": "11-inch; 13-inch model from $1499"},
+    {"product": "Apple Watch SE 3", "category": "Watch", "starting_price": 249, "note": "essential health/notifications for field staff"},
+    {"product": "Apple Watch Series 12", "category": "Watch", "starting_price": 399},
+    {"product": "Apple Watch Ultra 4", "category": "Watch", "starting_price": 799, "note": "rugged, for outdoor/field roles"},
+    {"product": "AirPods 5", "category": "AirPods", "starting_price": 129},
+    {"product": "AirPods Pro 3", "category": "AirPods", "starting_price": 249, "note": "active noise cancellation, common add-on for call-center/field roles"},
+    {"product": "AirPods Max 2", "category": "AirPods", "starting_price": 549}
   ],
-  "financing_note": "Apple Financial Services offers 24-month business leasing as an alternative to upfront purchase — ask about it if budget, not total cost, is the blocker."
+  "financing_note": "Apple Financial Services offers 24-month business leasing as an alternative to upfront purchase — ask about it if budget, not total cost, is the blocker.",
+  "fleet_scope_note": "Most fleet orders are Mac + iPhone + iPad; Watch and AirPods are usually added per-role (field/outdoor staff, call-center) rather than fleet-wide, and follow the same volume pricing when bundled onto the same order."
 }
