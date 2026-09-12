@@ -16,6 +16,8 @@
 
 [Features](#features) • [Quick Start](#quick-start) • [Architecture](#architecture) • [Tech Stack](#tech-stack) • [Contributing](#contributing) • [Team](#team)
 
+**🔴 Live now:** [aria.aroice.in](https://aria.aroice.in) — console + ops dashboard · [crm.aria.aroice.in](https://crm.aria.aroice.in) — the real CRM, hosted on a real Oracle Cloud VPS behind Caddy and Let's Encrypt TLS, not a laptop and a tunnel.
+
 </div>
 
 ![Aria console mid-call — the lead card, sentiment, and live deal state updating while she is still talking](assets/screenshot-live-call.png)
@@ -44,6 +46,7 @@ written handoff brief — the moment she genuinely should.
 - [Mobile app for the rep](#mobile-app-for-the-rep)
 - [Configuration](#configuration)
 - [Tests](#tests)
+- [Proven at scale](#proven-at-scale)
 - [Project layout](#project-layout)
 - [Contributing](#contributing)
 - [Team](#team)
@@ -80,6 +83,20 @@ written handoff brief — the moment she genuinely should.
   engineer each get a distinct voice, and the accent follows the caller's language mid-call.
 - **A mobile app for the rep.** An Expo app that surfaces live escalations and handoff briefs, so
   the human on the other end of a warm transfer isn't stuck at a desktop.
+- **Not just B2B.** Aria reads the phrasing — "my team" vs. "I need a new phone" — and skips the
+  company/role/headcount questions entirely for a solo buyer. Financing, AppleCare+, and trade-in
+  work exactly the same for one device as for fifty.
+- **A live ops dashboard.** `/dashboard` lists every lead and session the backend has ever seen,
+  live capacity stats, open escalations (with one-click discount approval), follow-up tasks, and
+  the product catalog — proof concurrency is real, not simulated.
+- **A catalog a rep can extend live.** Adding a product writes real stock and re-indexes the RAG
+  corpus in the same call — Aria can answer about it on the very next question, no restart.
+- **When it isn't ready to be a meeting yet.** A follow-up gets written as a real Task in the CRM,
+  not a line buried in a transcript, so a rep has something to work later.
+- **She does the currency math.** ₹, rupees, lakh, crore — Aria recognizes all of them, converts
+  at an approximate stated rate, and switches her own spoken currency to match the caller's.
+- **A face, not just a voice.** An optional 3D avatar, lip-synced off the live remote audio track
+  in real time — toggle it on mid-call, the 2D orb stays the default.
 
 ## Quick Start
 
@@ -170,6 +187,13 @@ backend as if it were OpenAI, streaming the response into TTS chunk by chunk. Th
 persona, the tool loop, RAG, the CRM, qualification state, negotiation, escalation, and every word
 she actually says. Agora never sees any of it.
 
+The diagram above is local dev — `aria.aroice.in` runs the identical stack on a real Oracle Cloud
+VPS behind Caddy, one hostname split by path so the browser never makes a cross-origin request.
+The backend runs `--workers 1` there, deliberately: sessions live in an in-process dict, so a
+second worker would get its own empty copy and Agora's next webhook for a call would land on a
+process that never heard of it. Scaling out means moving sessions to Redis first, not adding
+workers.
+
 ## Tech Stack
 
 | Layer | What | Why |
@@ -183,7 +207,10 @@ she actually says. Agora never sees any of it.
 | **Expo / React Native** | Mobile app for the rep | Escalations and handoff briefs on the move |
 | **EspoCRM** | Open-source CRM, in Docker | The real system of record — leads and meetings, not a mock |
 | **mem0 + Voyage AI** | Long-term call memory | Recalls something said early in a long call |
-| **cloudflared** | Cloudflare Tunnel | Public HTTPS so Agora's cloud can reach a laptop |
+| **Three.js** | Optional 3D avatar | Real lipsync off live audio, plain WebGL — no react-three-fiber |
+| **cloudflared** | Cloudflare Tunnel | Public HTTPS so Agora's cloud can reach a laptop during local dev |
+| **Caddy + Let's Encrypt** | Reverse proxy, automatic TLS | The live deployment — one hostname split by path, real HTTPS that renews itself |
+| **Oracle Cloud (ARM/A1.Flex)** | The VPS `aria.aroice.in` runs on | Hosts console, backend, and CRM behind Caddy, `--workers 1` by design (see [Architecture](#architecture)) |
 | **SMTP** | Email delivery | Confirmation invites and end-of-call wrap-ups |
 
 ## How a call actually flows
@@ -267,8 +294,24 @@ Everything is environment-driven — see `backend/.env.example` for the full ann
 cd backend && python -m pytest
 ```
 
-242 tests, ~10 seconds, zero network calls — the full tool loop runs against fake models and fake
+293 tests, ~2 seconds, zero network calls — the full tool loop runs against fake models and fake
 stores: corrections, escalation rules, deal clamping, voice selection, and the LLM endpoint.
+
+## Proven at scale
+
+`scripts/capacity_test.py` runs the real six-beat call script — CRM writes, deal-desk consult,
+RAG search, calendar lookup — through the real turn loop, concurrently. Only the model itself is
+stubbed.
+
+| | |
+|---|---|
+| **Concurrent calls** | 256 |
+| **Turns handled** | 1,536 in 1.91s |
+| **p95 latency** | 0.30s |
+| **Failed turns** | 0 |
+
+At 512 concurrent calls: 3,072 turns in 6.34s (485/s), p95 1.04s, still zero failed. It found a
+genuine concurrency bug on its first serious run — before that bug ever reached a live call.
 
 ## Project Layout
 
@@ -281,9 +324,14 @@ stores: corrections, escalation rules, deal clamping, voice selection, and the L
 | `backend/app/notify/` | Confirmation email, `.ics` invite, and the end-of-call wrap-up |
 | `backend/app/language/profiles.py` | English / Hindi / Hinglish, and the settings that must agree |
 | `backend/app/voice/director.py` | Who speaks, in what accent, and when it's worth a round-trip |
-| `frontend/` | The Next.js operator console |
+| `backend/app/tasks/` | Follow-up tasks — written as real EspoCRM Tasks, not transcript notes |
+| `frontend/app/page.tsx` | The Next.js operator console |
+| `frontend/app/dashboard/` | The ops dashboard — leads, capacity, escalations, catalog, in one view |
+| `frontend/app/about/` | The project's own story/architecture page |
+| `frontend/components/Avatar3D.tsx` · `lib/lipsync.ts` | The optional 3D avatar and its real-time lipsync |
 | `mobile/` | The Expo app for the rep |
 | `crm/` | EspoCRM + MariaDB Docker setup, and `scripts/provision_crm.py` |
+| `deploy/` | The live-VPS deployment — Caddy, docker-compose, `up.sh` |
 
 ## Contributing
 
