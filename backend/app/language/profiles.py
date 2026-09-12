@@ -210,9 +210,9 @@ HINDI = LanguageProfile(
 # recogniser pinned to either one mangles the other half.
 HINGLISH = LanguageProfile(
     code="hinglish",
-    label="Hindi/English (code-switching)",
+    label="English by default, Hindi/English code-switching on request",
     asr_language="multi",
-    voice_id="hindi_female_1_v2",
+    voice_id="English_captivating_female1",
     language_boost="auto",
     english_normalization=False,
     speech_speed=1.02,
@@ -225,44 +225,53 @@ HINGLISH = LanguageProfile(
         "en": "English_captivating_female1",
     },
     agent_voices={
-        "aria": "hindi_female_1_v2",
+        "aria": "English_captivating_female1",
         # One Hindi male voice is all MiniMax offers under managed mode, and
         # it goes to the solutions engineer: on the demo call that is the
         # handoff that needs to land as a different person. The deal desk
-        # gets the second female voice.
+        # gets the second female voice. Both stay Hindi-voiced even in this
+        # English-default profile - a call only reaches them after it's gone
+        # deep enough to need a specialist, and by then a call that switched
+        # to Hindi has usually stayed there.
         "deal_desk": "hindi_female_2_v1",
         "solutions": "hindi_male_1_v2",
     },
-    # Pinned for the whole call, same as voice_id above: Sarvam has no
-    # per-utterance "auto" language mode to match MiniMax's language_boost, so
-    # a mid-call switch would need voice_switching_enabled (off by default).
+    # Pinned for the whole call: Sarvam has no per-utterance "auto" language
+    # mode to match MiniMax's language_boost, so a mid-call switch would need
+    # voice_switching_enabled (off by default). Pinned to English, matching
+    # this profile's default now rather than Hindi.
     sarvam_speaker="priya",
-    sarvam_language_code="hi-IN",
+    sarvam_language_code="en-IN",
     sarvam_agent_speakers={
         "aria": "priya",
         "deal_desk": "kabir",
         "solutions": "dev",
     },
     greeting=(
-        "Apple Business Sales में आपका स्वागत है. <#0.25#> "
-        "This is Aria speaking. <#0.2#> मैं आपकी किस तरह मदद कर सकती हूँ?"
+        "Thanks for calling Apple Business Sales, "
+        "Apple Park, One Apple Park Way in Cupertino. <#0.25#> "
+        "This is Aria speaking. <#0.2#> How can I help you today?"
     ),
-    failure_message="(breath) Sorry, माफ़ कीजिए — क्या आप एक बार फिर कह सकते हैं?",
+    failure_message="(breath) Sorry — could you say that once more? I didn't quite catch it.",
     filler_phrases=[
-        "एक सेकंड <#0.3#> मैं अभी देखती हूँ.",
-        "Sure <#0.2#> बस एक पल दीजिए.",
-        "(breath) ठीक है, let me check that.",
-        "One moment <#0.25#> मैं अभी निकालती हूँ.",
+        "Let me pull that up for you. <#0.3#> One second.",
+        "Sure <#0.2#> give me just a second.",
+        "(breath) Okay, let me check that.",
+        "Mm, <#0.2#> one moment, I'm looking at it now.",
     ],
     prompt_instruction=(
-        "THE CALLER MAY SWITCH BETWEEN HINDI AND ENGLISH, OFTEN INSIDE ONE SENTENCE. "
-        "Match them. Reply in whichever language they just used, and let the mix fall "
-        "where it naturally does in an Indian office: Hindi for the conversation, English "
-        "for product names, numbers, dates and technical terms. Write any Hindi in "
-        "Devanagari script, never romanised - romanised Hindi is read out as English "
-        "words by the voice engine. Anything a tool handed you pre-formatted - a meeting "
-        "slot label, a price summary - is said exactly as given, in English. Do not "
-        "translate it and do not recalculate it."
+        "DEFAULT TO ENGLISH. Open and continue in English unless one of two things "
+        "happens: the caller actually speaks to you in Hindi (a real Hindi sentence or "
+        "phrase, not a single loanword), or they explicitly ask you to speak Hindi "
+        "('hindi mein baat karo', 'can you speak Hindi'). Only then switch - and once you "
+        "switch, keep matching them for the rest of the call the way an Indian office "
+        "conversation actually code-switches: Hindi for the conversation, English for "
+        "product names, numbers, dates and technical terms. Write any Hindi in Devanagari "
+        "script, never romanised - romanised Hindi is read out as English words by the "
+        "voice engine. If they go back to English, go back with them. Anything a tool "
+        "handed you pre-formatted - a meeting slot label, a price summary - is said "
+        "exactly as given, in English, regardless of what language the rest of the turn "
+        "is in. Do not translate it and do not recalculate it."
     ),
 )
 

@@ -70,28 +70,29 @@ def test_hindi_switches_the_recogniser_and_the_target_language_together():
 def test_hinglish_uses_the_multilingual_recogniser():
     """A buyer discussing a device fleet switches language inside a sentence;
     a recogniser pinned to either one mangles the other half. Sarvam has no
-    per-utterance auto mode to match, so the TTS side stays pinned to Hindi
-    for the call - see test_hinglish_pins_sarvam_to_hindi below."""
+    per-utterance auto mode to match, so the TTS side stays pinned to English
+    by default - see test_hinglish_pins_sarvam_to_english below."""
     props = _props(agent_language="hinglish")
 
     assert props["asr"]["params"]["language"] == "multi"
-    assert props["tts"]["params"]["target_language_code"] == "hi-IN"
+    assert props["tts"]["params"]["target_language_code"] == "en-IN"
 
 
-def test_hinglish_pins_sarvam_to_hindi_since_there_is_no_auto_mode():
+def test_hinglish_pins_sarvam_to_english_since_there_is_no_auto_mode():
     """MiniMax's language_boost="auto" lets it detect per utterance; Sarvam's
-    target_language_code is fixed per request, so the profile pins the
-    call to Hindi rather than guessing - matching what the MiniMax hinglish
-    profile does by default too (pins hindi_female_1_v2)."""
-    assert HINGLISH.sarvam_language_code == "hi-IN"
+    target_language_code is fixed per request, so the profile pins the call
+    to English by default rather than guessing - the caller has to actually
+    speak Hindi or ask for it before the model switches (the prompt side of
+    that lives in HINGLISH.prompt_instruction, not here)."""
+    assert HINGLISH.sarvam_language_code == "en-IN"
 
 
 def test_sarvam_speaker_is_cross_lingual_across_profiles():
     """Unlike MiniMax's language-specific voice ids, the same Sarvam speaker
     covers every language profile - only target_language_code changes."""
     assert ENGLISH.sarvam_speaker == HINDI.sarvam_speaker == HINGLISH.sarvam_speaker == "priya"
-    assert ENGLISH.sarvam_language_code == "en-IN"
-    assert HINDI.sarvam_language_code == HINGLISH.sarvam_language_code == "hi-IN"
+    assert ENGLISH.sarvam_language_code == HINGLISH.sarvam_language_code == "en-IN"
+    assert HINDI.sarvam_language_code == "hi-IN"
 
 
 def test_minimax_fallback_keeps_switching_the_recogniser_the_voice_and_the_boost_together():
