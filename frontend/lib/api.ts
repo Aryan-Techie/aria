@@ -1,5 +1,37 @@
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
+/**
+ * The dashboard-only endpoints (routes/admin.py::require_dashboard_session)
+ * check a signed HttpOnly cookie the browser attaches on its own once
+ * dashboardLogin() succeeds - the raw password is sent exactly once, to
+ * /api/dashboard/login, and never stored or replayed by this client at all.
+ * `credentials: "include"` is what makes the browser send/accept that
+ * cookie cross-origin in local dev (frontend :3000, backend :8000); on the
+ * VPS they're the same origin via Caddy, so it's a no-op there.
+ */
+export async function dashboardLogin(password: string): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/api/dashboard/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) throw new Error(`Login failed: ${res.status}`);
+}
+
+/** True for the specific 401 the dashboard session gate returns, so the
+ * dashboard page can tell "not logged in" apart from every other failure
+ * mode and re-prompt instead of just showing an error banner. */
+export function isDashboardAuthError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("401");
+}
+
+/** True for the login endpoint's rate-limit response, so the dashboard can
+ * show "wait a few minutes" instead of "wrong password". */
+export function isRateLimitError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("429");
+}
+
 export interface StartCallResponse {
   session_id: string;
   channel_name: string;
@@ -140,7 +172,7 @@ export async function approveDiscount(
 ): Promise<{ approved_pct: number; applied_to_live_call: boolean }> {
   const res = await fetch(`${BACKEND_URL}/api/inbox/${escalationId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" }, credentials: "include",
     body: JSON.stringify({ approved_pct: approvedPct, approved_by: approvedBy }),
   });
   if (!res.ok) throw new Error(`Approval failed: ${res.status}`);
@@ -188,13 +220,13 @@ export async function fetchCapacity(): Promise<CapacitySnapshot> {
 }
 
 export async function fetchLeads(): Promise<LeadRecord[]> {
-  const res = await fetch(`${BACKEND_URL}/api/leads`);
+  const res = await fetch(`${BACKEND_URL}/api/leads`, { credentials: "include" });
   if (!res.ok) throw new Error(`Failed to fetch leads: ${res.status}`);
   return res.json();
 }
 
 export async function fetchInbox(): Promise<EscalationRecord[]> {
-  const res = await fetch(`${BACKEND_URL}/api/inbox`);
+  const res = await fetch(`${BACKEND_URL}/api/inbox`, { credentials: "include" });
   if (!res.ok) throw new Error(`Failed to fetch inbox: ${res.status}`);
   return res.json();
 }
@@ -212,7 +244,7 @@ export interface TaskRecord {
 }
 
 export async function fetchTasks(): Promise<TaskRecord[]> {
-  const res = await fetch(`${BACKEND_URL}/api/tasks`);
+  const res = await fetch(`${BACKEND_URL}/api/tasks`, { credentials: "include" });
   if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.status}`);
   return res.json();
 }
@@ -237,7 +269,7 @@ export interface ProductDraft {
 }
 
 export async function fetchProducts(): Promise<ProductListing[]> {
-  const res = await fetch(`${BACKEND_URL}/api/products`);
+  const res = await fetch(`${BACKEND_URL}/api/products`, { credentials: "include" });
   if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
   return res.json();
 }
@@ -250,7 +282,7 @@ export async function fetchProducts(): Promise<ProductListing[]> {
 export async function createProduct(draft: ProductDraft): Promise<{ sku: string; name: string; price_usd: number }> {
   const res = await fetch(`${BACKEND_URL}/api/products`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" }, credentials: "include",
     body: JSON.stringify(draft),
   });
   if (!res.ok) throw new Error(`Failed to add product: ${res.status}`);

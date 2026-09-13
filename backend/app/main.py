@@ -45,6 +45,10 @@ app.add_middleware(
     allow_origins=[o.strip() for o in _settings.cors_allowed_origins.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
+    # The dashboard's session cookie is cross-origin in local dev (frontend
+    # :3000, backend :8000) - credentialed requests need this, and it's only
+    # safe alongside an explicit origin list above, never "*".
+    allow_credentials=True,
 )
 
 app.include_router(call.router)

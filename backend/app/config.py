@@ -115,6 +115,13 @@ class Settings(BaseSettings):
     # live call, and a half-configured mail server should cost nothing rather
     # than block a turn. Any SMTP provider works - Gmail with an App Password
     # (free, 500/day) is what this was developed against.
+    # Gates /api/leads, /api/products, /api/inbox, /api/tasks and the discount
+    # approval endpoint - the dashboard-only surface, not /api/metrics/capacity
+    # or /api/calendar/slots, which the live console also depends on. Off
+    # (no password required) until set, same posture as CRM_BACKEND/EMAIL_ENABLED
+    # below - a fresh checkout isn't locked out of its own dashboard.
+    dashboard_password: str = ""
+
     email_enabled: bool = False
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587  # 587 = STARTTLS submission; 465 = implicit TLS
