@@ -2,6 +2,7 @@
 
 import type { RightBrain } from "@/lib/api";
 import { CheckIcon } from "@/lib/vocab";
+import { DoodleSpark } from "@/components/Doodles";
 
 /**
  * The softer half of the record: how the call feels, who else is in the
@@ -16,7 +17,10 @@ export function SignalsCard({ brain }: { brain: RightBrain | null }) {
 
   return (
     <section className="card">
-      <h3>Signals</h3>
+      <h3 style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+        Signals
+        <DoodleSpark className="doodle faint" size={14} />
+      </h3>
       <div className="mood">
         <div className={`word m-${sentiment}`}>{sentiment}</div>
         <div className="trail" aria-label={`Sentiment over the last ${history.length} readings`}>

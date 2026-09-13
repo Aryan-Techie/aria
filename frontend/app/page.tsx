@@ -12,6 +12,9 @@ import { ActivityCard, type ToolRecord } from "@/components/ActivityCard";
 import { ToolPopup } from "@/components/ToolPopup";
 import { Avatar3D } from "@/components/Avatar3D";
 import { Brief } from "@/components/Brief";
+import { FieldCursor } from "@/components/FieldCursor";
+import { useFieldCursor } from "@/lib/useFieldCursor";
+import { DoodleWave, DoodleSpark, DoodleArrow, DoodleCircle, DoodleUnderline, DoodleLoop } from "@/components/Doodles";
 import { AgoraCallClient, type RtmCustomEvent } from "@/lib/agoraClient";
 import {
   endCall,
@@ -71,6 +74,7 @@ export default function Home() {
   const [callsLiveNow, setCallsLiveNow] = useState<number | null>(null);
 
   const sessionIdRef = useRef<string | null>(null);
+  const leadCardWrapRef = useRef<HTMLDivElement | null>(null);
   const clientRef = useRef<AgoraCallClient | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const endedAtRef = useRef<number | null>(null);
@@ -79,6 +83,7 @@ export default function Home() {
   const inFlightRef = useRef<Map<string, { id: string; startedMs: number }[]>>(new Map());
 
   const phase: Phase = status === "idle" ? "idle" : status === "ended" ? "ended" : "live";
+  const fieldCursor = useFieldCursor(leftBrain, status === "active", leadCardWrapRef);
 
   /* ---------------- theme ---------------- */
   useEffect(() => {
@@ -482,14 +487,17 @@ export default function Home() {
           <Logo size={24} />
           <span>Aria</span>
           <span className="sub">Console</span>
+          <DoodleSpark className="doodle faint" size={13} />
         </div>
         <div className={`status ${phase}${status === "connecting" ? " connecting" : ""}`} role="status">
           <span className="dot" />
           <span>{statusLabel}</span>
+          {status === "idle" && <DoodleLoop className="doodle faint" size={14} />}
           {status !== "idle" && <span className="time">{fmt(status === "ended" ? durationSeconds : elapsed)}</span>}
         </div>
         {callsLiveNow != null && callsLiveNow > 0 && (
           <span className="pill info" title="Calls live across the whole backend right now">
+            <DoodleWave className="doodle" width={16} />
             {callsLiveNow} live
           </span>
         )}
@@ -524,15 +532,35 @@ export default function Home() {
               <Orb phase={phase} speaker={speaker} hold={hold} getLevel={getLevel} />
             )}
             <ToolPopup tools={tools} />
-            <div className="caption">{caption}</div>
+            <div className="caption">
+              {caption}
+              {status === "idle" && !error && (
+                <DoodleUnderline className="doodle" style={{ display: "block", margin: "4px auto 0" }} />
+              )}
+            </div>
             <div className="controls">
               {(status === "idle" || status === "ended") && (
-                <button className="primary" onClick={handleStart}>
-                  {status === "ended" ? "New call" : "Start call"}
-                </button>
+                <span style={{ position: "relative", display: "inline-flex" }}>
+                  {status === "idle" && (
+                    <DoodleWave
+                      className="doodle doodle-spin faint"
+                      style={{ position: "absolute", right: "calc(100% + 10px)", top: "50%", marginTop: -8 }}
+                    />
+                  )}
+                  <button className="primary" onClick={handleStart}>
+                    {status === "ended" ? "New call" : "Start call"}
+                  </button>
+                </span>
               )}
               {(status === "connecting" || status === "active" || status === "ending") && (
-                <>
+                <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 14 }}>
+                  {status === "active" && !hold && !micMuted && (
+                    <DoodleArrow
+                      className="doodle faint"
+                      size={30}
+                      style={{ position: "absolute", left: "50%", bottom: "calc(100% + 6px)", transform: "translateX(-50%) rotate(90deg)" }}
+                    />
+                  )}
                   <button
                     className={`round${micMuted ? " on" : ""}`}
                     onClick={toggleMute}
@@ -554,7 +582,7 @@ export default function Home() {
                   <button className="round end" onClick={handleEnd} disabled={status !== "active"} title="End call">
                     <EndIcon />
                   </button>
-                </>
+                </span>
               )}
             </div>
           </div>
@@ -571,6 +599,7 @@ export default function Home() {
                 onClick={() => setTab("transcript")}
               >
                 Transcript
+                <DoodleWave className="doodle faint" width={18} style={{ marginLeft: 5, verticalAlign: "middle" }} />
               </button>
             </div>
           )}
@@ -579,7 +608,16 @@ export default function Home() {
             <Transcript
               items={feed}
               hidden={status === "ended" && tab !== "transcript"}
-              emptyText={status === "connecting" ? "Joining the channel…" : "Say hello. Every turn and every tool call prints here as it happens."}
+              emptyText={
+                status === "connecting" ? (
+                  "Joining the channel…"
+                ) : (
+                  <>
+                    <DoodleWave className="doodle faint" width={32} style={{ display: "block", margin: "0 auto 8px" }} />
+                    Say hello. Every turn and every tool call prints here as it happens.
+                  </>
+                )
+              }
             />
           )}
 
@@ -603,7 +641,10 @@ export default function Home() {
         </section>
 
         <aside className="sheet">
-          <LeadCard lead={leftBrain} booked={booked} escalated={escalation !== null} sessionId={sessionIdRef.current} />
+          <div ref={leadCardWrapRef} style={{ position: "relative" }}>
+            <LeadCard lead={leftBrain} booked={booked} escalated={escalation !== null} sessionId={sessionIdRef.current} />
+            <FieldCursor {...fieldCursor} />
+          </div>
           <SignalsCard brain={rightBrain} />
           <DealCard
             rounds={rounds}

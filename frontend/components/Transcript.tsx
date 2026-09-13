@@ -44,7 +44,7 @@ export function Transcript({
 }: {
   items: FeedItem[];
   hidden?: boolean;
-  emptyText: string;
+  emptyText: React.ReactNode;
 }) {
   const turns = items.filter((i) => i.kind === "turn");
   const events = items.filter((i) => i.kind !== "turn");

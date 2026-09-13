@@ -12,6 +12,16 @@ import {
   CaddyMark,
   ExpoMark,
 } from "@/components/BrandMarks";
+import {
+  DoodleUnderline,
+  DoodleArrow,
+  DoodleSpark,
+  DoodleCircle,
+  DoodleWave,
+  DoodleCheck,
+  DoodleDivider,
+  DoodleLoop,
+} from "@/components/Doodles";
 
 export const metadata: Metadata = {
   title: "Aria — a voice AI that sells like a person",
@@ -49,6 +59,7 @@ export default function AboutPage() {
             <img src={AGORA_LOGO} alt="Agora" />
           </div>
           <h1 className="headline">She doesn&apos;t wait for you to finish.</h1>
+          <DoodleUnderline className="doodle" style={{ margin: "-6px auto 0", display: "block" }} />
           <p className="story-sub">
             A real-time voice sales agent, built on Agora&apos;s Conversational AI Engine. Interrupt
             her mid-sentence and she stops instantly — that&apos;s Agora&apos;s own barge-in detection,
@@ -67,7 +78,7 @@ export default function AboutPage() {
         {/* ---------- the problem ---------- */}
         <section className="story-section">
           <div className="story-section-head">
-            <p className="story-eyebrow">The problem</p>
+            <p className="story-eyebrow">The problem <DoodleSpark className="doodle faint" size={13} style={{ verticalAlign: "middle" }} /></p>
             <h2>Scripts break the moment a real customer shows up.</h2>
             <p>
               A scripted voice bot holds together right up until someone interrupts mid-sentence,
@@ -86,7 +97,8 @@ export default function AboutPage() {
             </p>
             <img src={AGORA_LOGO} alt="Agora" />
             <h2 style={{ margin: 0, fontSize: 27, fontWeight: 600, letterSpacing: "-0.02em" }}>
-              Agora is the phone system. This backend is the person.
+              Agora is the phone system. This backend is the person.{" "}
+              <DoodleWave className="doodle" width={26} style={{ verticalAlign: "middle" }} />
             </h2>
             <p>
               Every hard problem in real-time voice — hearing the customer, catching the exact
@@ -117,7 +129,10 @@ export default function AboutPage() {
         <section className="story-section">
           <div className="story-section-head">
             <p className="story-eyebrow">Built with</p>
-            <h2>Real vendors, wired in — not simulated.</h2>
+            <h2>
+              Real vendors, wired in — not simulated.{" "}
+              <DoodleCircle className="doodle faint" size={20} style={{ verticalAlign: "middle" }} />
+            </h2>
             <p>Everything below is actually running, not a slide of logos.</p>
           </div>
           <div className="story-pill-row" style={{ maxWidth: 700 }}>
@@ -166,7 +181,7 @@ export default function AboutPage() {
         {/* ---------- the brain we built ---------- */}
         <section className="story-section" id="brain">
           <div className="story-section-head">
-            <p className="story-eyebrow">The brain</p>
+            <p className="story-eyebrow">The brain <DoodleSpark className="doodle warm" size={13} style={{ verticalAlign: "middle" }} /></p>
             <h2>Ten tools, one decision at a time.</h2>
             <p>
               What Agora hands us each turn is a transcript. What we do with it is the actual
@@ -175,7 +190,10 @@ export default function AboutPage() {
           </div>
           <div className="story-grid">
             <div className="card">
-              <h3>Not a decision tree</h3>
+              <h3>
+                Not a decision tree{" "}
+                <DoodleCheck className="doodle" size={14} style={{ verticalAlign: "middle" }} />
+              </h3>
               <p>
                 Every turn, a tool-calling loop decides — live — whether to search the product
                 knowledge base, update the lead, check the calendar, log an objection, or hand off
@@ -194,7 +212,10 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="card">
-              <h3>The clamp is code, not a prompt</h3>
+              <h3>
+                The clamp is code, not a prompt{" "}
+                <DoodleCheck className="doodle warm" size={14} style={{ verticalAlign: "middle" }} />
+              </h3>
               <p>
                 An 18% walk-away floor is enforced in <code>engine.authorise</code>, deterministically.
                 Feed the desk a 40% recommendation and what comes back out is a capped offer, a
@@ -212,7 +233,10 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="card">
-              <h3>Benchmarked, not vendor-locked</h3>
+              <h3>
+                Benchmarked, not vendor-locked{" "}
+                <DoodleCheck className="doodle faint" size={14} style={{ verticalAlign: "middle" }} />
+              </h3>
               <p>
                 The model behind the tool-calling loop is provider-agnostic on purpose — Groq,
                 Anthropic, and Gemini all plug into the same interface. Which one serves a turn is
@@ -228,7 +252,10 @@ export default function AboutPage() {
         <section className="story-section">
           <div className="story-section-head">
             <p className="story-eyebrow">Architecture</p>
-            <h2>Three layers. Agora owns the first two.</h2>
+            <h2>
+              Three layers. Agora owns the first two.{" "}
+              <DoodleWave className="doodle faint" width={26} style={{ verticalAlign: "middle" }} />
+            </h2>
             <p>
               Not a diagram of ambition — this is the actual request path a single turn takes,
               start to finish.
@@ -293,7 +320,7 @@ export default function AboutPage() {
         {/* ---------- she adapts to you ---------- */}
         <section className="story-section">
           <div className="story-section-head">
-            <p className="story-eyebrow">Multilingual &amp; memory</p>
+            <p className="story-eyebrow">Multilingual &amp; memory <DoodleCircle className="doodle faint" size={13} style={{ verticalAlign: "middle" }} /></p>
             <h2>One call, and she never stops noticing.</h2>
           </div>
           <div className="story-grid">
@@ -338,10 +365,12 @@ export default function AboutPage() {
           <div className="list agreed" style={{ maxWidth: 680, margin: "0 auto" }}>
             <ul>
               <li>
+                <DoodleCheck className="doodle" size={13} style={{ verticalAlign: "middle", marginRight: 4 }} />
                 A customer corrects 25 devices to 50 mid-call, and it&apos;s the same Lead record with
                 one field overwritten — not a second lead, not a restart.
               </li>
               <li>
+                <DoodleCheck className="doodle warm" size={13} style={{ verticalAlign: "middle", marginRight: 4 }} />
                 Booking a meeting writes a real Meeting in EspoCRM and sends a real{" "}
                 <code>.ics</code> calendar invite over SMTP — accept it and it lands in the
                 customer&apos;s actual calendar.
@@ -362,7 +391,10 @@ export default function AboutPage() {
         <section className="story-section">
           <div className="story-section-head">
             <p className="story-eyebrow">Proven, not claimed</p>
-            <h2>256 concurrent calls. Zero failed turns.</h2>
+            <h2>
+              256 concurrent calls. Zero failed turns.{" "}
+              <DoodleSpark className="doodle" size={18} style={{ verticalAlign: "middle" }} />
+            </h2>
           </div>
           <div className="stats" style={{ maxWidth: 680, margin: "0 auto 18px" }}>
             <div className="stat">
@@ -381,7 +413,9 @@ export default function AboutPage() {
             </div>
             <div className="stat">
               <div className="k">Failed turns</div>
-              <div className="v">0</div>
+              <div className="v">
+                0 <DoodleCheck className="doodle warm" size={13} style={{ verticalAlign: "middle" }} />
+              </div>
             </div>
           </div>
           <p className="story-note" style={{ maxWidth: 680 }}>
@@ -396,7 +430,7 @@ export default function AboutPage() {
         {/* ---------- what she does beyond the call ---------- */}
         <section className="story-section">
           <div className="story-section-head">
-            <p className="story-eyebrow">Beyond the call</p>
+            <p className="story-eyebrow">Beyond the call <DoodleWave className="doodle faint" width={22} style={{ verticalAlign: "middle" }} /></p>
             <h2>The work doesn&apos;t end when she hangs up.</h2>
             <p>
               A call is one turn loop. Everything below is what happens around it — before, during,
@@ -405,7 +439,10 @@ export default function AboutPage() {
           </div>
           <div className="story-grid">
             <div className="card">
-              <h3>A dashboard for every call, not just this one</h3>
+              <h3>
+                A dashboard for every call, not just this one{" "}
+                <DoodleSpark className="doodle" size={13} style={{ verticalAlign: "middle" }} />
+              </h3>
               <p>
                 <code>/dashboard</code> lists every lead and session the backend has ever seen,
                 live capacity stats, open escalations, and the product catalog — polling the same
@@ -438,7 +475,10 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="card">
-              <h3>When it isn&apos;t ready to be a meeting yet</h3>
+              <h3>
+                When it isn&apos;t ready to be a meeting yet{" "}
+                <DoodleCheck className="doodle warm" size={13} style={{ verticalAlign: "middle" }} />
+              </h3>
               <p>
                 <code>schedule_followup</code> writes a real Task into EspoCRM — not a line in a
                 transcript — so a rep has something to work later, even when the call ends short of
@@ -463,7 +503,10 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="card">
-              <h3>A face, not just a voice</h3>
+              <h3>
+                A face, not just a voice{" "}
+                <DoodleLoop className="doodle faint" size={20} style={{ verticalAlign: "middle" }} />
+              </h3>
               <p>
                 An optional 3D avatar, built in plain Three.js rather than react-three-fiber — a
                 deliberate call for React/Next version compatibility — lip-syncing off the live
@@ -493,7 +536,8 @@ export default function AboutPage() {
               </li>
               <li>
                 Agora occasionally sends a turn with an empty transcript slot, which the model API
-                flatly rejects — a shape no scripted test conversation would ever produce.
+                flatly rejects — a shape no scripted test conversation would ever produce.{" "}
+                <DoodleSpark className="doodle faint" size={11} style={{ verticalAlign: "middle" }} />
               </li>
             </ul>
           </div>
@@ -506,7 +550,7 @@ export default function AboutPage() {
         {/* ---------- faq ---------- */}
         <section className="story-section">
           <div className="story-section-head">
-            <p className="story-eyebrow">Questions</p>
+            <p className="story-eyebrow">Questions <DoodleSpark className="doodle" size={13} style={{ verticalAlign: "middle" }} /></p>
             <h2>Answered straight, same as she would.</h2>
           </div>
           <div className="story-faq">
@@ -539,6 +583,7 @@ export default function AboutPage() {
                 Microsoft Intune, so IT keeps whatever device-management stack it already runs.
               </p>
             </details>
+            <DoodleDivider className="doodle faint" style={{ display: "block", margin: "2px auto" }} />
             <details>
               <summary>What if I&apos;m buying one device for myself, not a fleet?</summary>
               <p>
@@ -571,10 +616,14 @@ export default function AboutPage() {
           <h2 style={{ fontSize: 27, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 20px" }}>
             Start a call. See what she does with it.
           </h2>
-          <div className="story-cta-row">
+          <div className="story-cta-row" style={{ position: "relative" }}>
             <a href="/" className="primary">
               Try the live console
             </a>
+            <DoodleArrow
+              className="doodle warm"
+              style={{ position: "absolute", left: "calc(100% + 4px)", top: "-34px", transform: "scaleX(-1)" }}
+            />
           </div>
           <p className="story-fineprint" style={{ marginTop: 18 }}>
             Live on a real Oracle Cloud VPS behind Caddy and real Let&apos;s Encrypt TLS — not a

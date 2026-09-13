@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { approveDiscount } from "@/lib/api";
+import { DoodleArrow, DoodleDivider, DoodleCheck } from "@/components/Doodles";
 
 export interface DealConcession {
   kind: string;
@@ -96,7 +97,10 @@ export function DealCard({
   return (
     <section className={`card${pendingApprovalId && approvedPct === null ? " awaiting" : ""}`}>
       <h3>
-        Deal
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          Deal
+          <DoodleArrow className="doodle faint" size={20} style={{ transform: "rotate(35deg)" }} />
+        </span>
         <span>{rounds.length === 0 ? "no offer yet" : `${granted}% in force`}</span>
         <button
           type="button"
@@ -127,6 +131,7 @@ export function DealCard({
             <i />
             <b>
               {FLOOR}%<small>Floor</small>
+              <DoodleCheck className="doodle warm" size={11} style={{ display: "block", margin: "2px auto 0" }} />
             </b>
           </div>
           {rounds.length > 0 && (
@@ -137,6 +142,9 @@ export function DealCard({
         </div>
       </div>
 
+      {rounds.length > 0 && (
+        <DoodleDivider className="doodle faint" style={{ display: "block", margin: "4px auto 8px" }} />
+      )}
       {rounds.length > 0 && (
         <div className="rounds">
           {rounds.map((r) => {

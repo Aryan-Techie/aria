@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { updateLeadManually, type LeadEdit, type LeftBrain } from "@/lib/api";
 import { OUTCOME_LABEL, STAGES } from "@/lib/vocab";
+import { DoodleCircle, DoodleDivider } from "@/components/Doodles";
 
 /** Counts a number up or down to its new value, so "10 devices" becoming
  * "50 devices" is seen to change rather than found to have changed. */
@@ -100,7 +101,10 @@ export function LeadCard({
   return (
     <section className="card">
       <h3>
-        Lead
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          Lead
+          <DoodleCircle className="doodle faint" size={16} />
+        </span>
         {booked && <span className="tone-good">Booked</span>}
         {!booked && escalated && <span className="tone-bad">Handed off</span>}
         {!editing && sessionId && !booked && !escalated && (
@@ -162,17 +166,17 @@ export function LeadCard({
       ) : (
         <>
           {lead?.name && (
-        <div className="contact">
+        <div className="contact" data-field="name">
           {lead.name}
           {lead.title && <span className="role"> · {lead.title}</span>}
         </div>
       )}
-      <div className={`company${lead?.company ? "" : " empty"}`}>
+      <div className={`company${lead?.company ? "" : " empty"}`} data-field="company">
         {lead?.company ?? "Listening for a company…"}
         {lead?.industry && <span className="role"> · {lead.industry}</span>}
       </div>
       {(lead?.email || lead?.phone) && (
-        <div className="reach">
+        <div className="reach" data-field="reach">
           {lead.email && <span>{lead.email}</span>}
           {lead.phone && <span>{lead.phone}</span>}
         </div>
@@ -185,21 +189,24 @@ export function LeadCard({
         </>
       )}
       <div className="fields">
-        <div className="field">
-          <div className="k">Devices</div>
+        <div className="field" data-field="devices">
+          <div className="k" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            Devices
+            <DoodleCircle className="doodle faint" size={12} />
+          </div>
           <div className={`v big${users == null ? " empty" : ""}${hot ? " hot" : ""}`}>{users ?? "—"}</div>
         </div>
-        <div className="field">
+        <div className="field" data-field="budget">
           <div className="k">Budget</div>
           <div className={`v${lead?.budget_range ? "" : " empty"}`}>{lead?.budget_range ?? "—"}</div>
         </div>
-        <div className="field">
+        <div className="field" data-field="timeline">
           <div className="k">Timeline</div>
           <div className={`v${lead?.timeline ? "" : " empty"}`}>{lead?.timeline ?? "—"}</div>
         </div>
       </div>
       {pains.length > 0 && (
-        <div className="pains">
+        <div className="pains" data-field="pains">
           {pains.map((p) => (
             <span className="chip" key={p}>
               {p}
@@ -207,7 +214,8 @@ export function LeadCard({
           ))}
         </div>
       )}
-      <div className="stepper">
+      <DoodleDivider className="doodle faint" style={{ display: "block", margin: "14px auto 0" }} />
+      <div className="stepper" data-field="stage">
         {STAGES.map((s, i) => (
           <div
             className={`step${i < stageIndex || booked ? " done" : ""}${i === stageIndex && !booked ? " now" : ""}`}

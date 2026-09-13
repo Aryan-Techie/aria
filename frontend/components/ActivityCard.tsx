@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef } from "react";
 import { minutesHandled, toolDone } from "@/lib/vocab";
+import { DoodleCircle, DoodleWave, DoodleLoop } from "@/components/Doodles";
 
 export interface ToolRecord {
   id: string;
@@ -45,11 +46,19 @@ export function ActivityCard({ tools, booked }: { tools: ToolRecord[]; booked: b
   return (
     <section className="card">
       <h3>
-        Activity
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          Activity
+          <DoodleCircle className="doodle faint" size={14} />
+        </span>
         <span>{tools.length ? `${tools.length} tool call${tools.length === 1 ? "" : "s"}` : ""}</span>
       </h3>
       <div className="acts" ref={ref}>
-        {tools.length === 0 && <p className="meta">Every lookup, write and booking lands here with its round trip.</p>}
+        {tools.length === 0 && (
+          <p className="meta" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <DoodleWave className="doodle faint" width={20} />
+            Every lookup, write and booking lands here with its round trip.
+          </p>
+        )}
         {tools.map((t) => (
           <Fragment key={t.id}>
             <div className="act">
@@ -73,7 +82,10 @@ export function ActivityCard({ tools, booked }: { tools: ToolRecord[]; booked: b
         ))}
       </div>
       <div className="saved">
-        <span>Rep time handled</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          Rep time handled
+          <DoodleLoop className="doodle faint" size={22} />
+        </span>
         <b>{minutes} min</b>
       </div>
     </section>
