@@ -138,7 +138,7 @@ ENGLISH = LanguageProfile(
     greeting=(
         "Thanks for calling Apple Business Sales, "
         "Apple Park, One Apple Park Way in Cupertino. <#0.25#> "
-        "This is Aria speaking. <#0.2#> How can I help you today?"
+        "This is Aria speaking. <#0.2#> And who do I have the pleasure of speaking with today?"
     ),
     failure_message="(breath) Sorry — could you say that once more? I didn't quite catch it.",
     filler_phrases=[
@@ -184,7 +184,7 @@ HINDI = LanguageProfile(
     },
     greeting=(
         "Apple Business Sales में आपका स्वागत है. <#0.25#> "
-        "मैं Aria बोल रही हूँ. <#0.2#> मैं आपकी किस तरह मदद कर सकती हूँ?"
+        "मैं Aria बोल रही हूँ. <#0.2#> आपका शुभ नाम क्या है?"
     ),
     failure_message="(breath) माफ़ कीजिए — क्या आप एक बार फिर कह सकते हैं? मैं ठीक से सुन नहीं पाई.",
     filler_phrases=[
@@ -250,7 +250,7 @@ HINGLISH = LanguageProfile(
     greeting=(
         "Thanks for calling Apple Business Sales, "
         "Apple Park, One Apple Park Way in Cupertino. <#0.25#> "
-        "This is Aria speaking. <#0.2#> How can I help you today?"
+        "This is Aria speaking. <#0.2#> And who do I have the pleasure of speaking with today?"
     ),
     failure_message="(breath) Sorry — could you say that once more? I didn't quite catch it.",
     filler_phrases=[
