@@ -274,7 +274,7 @@ queue and each call's AI-written brief, so a rep isn't stuck at a desktop waitin
   <img src="assets/mobile-app-inbox.jpg" width="280" alt="Aria mobile app — escalation inbox showing a customer waiting and the AI-written call outcome">
 </p>
 
-## Configuration
+## The Configuration
 
 Everything is environment-driven — see `backend/.env.example` for the full annotated list.
 
@@ -346,7 +346,7 @@ Built by **Team AR Voice**, under **[AROICE](https://aroice.in)**.
 |---|---|
 | **Aryan Techie** (Aryan Jangra) | [GitHub](https://github.com/aryan-techie) · [LinkedIn](https://www.linkedin.com/in/aryantechie) |
 | **Rudra Pratap Singh** | [GitHub](https://github.com/RudraO2) |
-| **Shipra Porwal** | [LinkedIn](https://www.linkedin.com/in/shipra-porwal-61229a219/) |
+| **Shipra Porwal** | [LinkedIn](https://www.linkedin.com/in/shipra-porwal-61229a219/) | [GitHub](https://github.com/shiprapr)
 
 ---
 
